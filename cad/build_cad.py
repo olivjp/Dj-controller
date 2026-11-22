@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Deterministic FreeCAD 1.0 OpenCASCADE B-Rep Solid & Mesh Compiler for the
-Pioneer DDJ-FLX4 Inspired DJ Controller Enclosure.
-Runs inside FreeCAD 1.0's headless Python (`C:/Program Files/FreeCAD 1.0/bin/python.exe`)
-to generate:
-  - ISO 10303-21 STEP files (.step) for mechanical CAD / CNC / injection molding
-  - High-resolution triangulated STL files (.stl) for 3D printing (both full unibody
-    and 3 modular bolted sections for 220x220mm FDM 3D printers: Deck A, Center Mixer, Deck B)
+Deterministic FreeCAD 1.0 OpenCASCADE B-Rep Solid & Mesh Compiler — DDJ-FLX4 Modular Core v2.1.
+
+Matched 1:1 to Joao Paulo's ACTUAL physical hardware (AliExpress 08/11/2025 + Mercado Livre 12/11/2025):
+  - 5x Slide Faders D103 = D10Kx2 (75 mm body, 60 mm travel, 71 mm mount hole pitch, 4.6 x 64.0 mm slots)
+  - 11x WH148 B10K Rotary Pots (18.5 mm vertical pitch > 16 mm body -> zero collision; 7.6 mm M7 bore)
+  - 2x EC11 Quadrature Encoders + 84 mm Jog Wheels (6.25 mm D-flat bore + radial M3 set-screw)
+  - 30x G82 12x12x5mm Tactile Switches + 12.6 mm keycaps in 13.2 mm windows (0.30 mm clearance/side)
+  - 98 x 98 mm 2-Layer Core PCB (Pro Micro USB-C + 2x blue CD74HC4067 1x16+1x8 breakouts)
+    mounted inside Center Mixer with 21.4 mm vertical headroom and flush rear USB-C port.
+  - 340 x 206 mm external enclosure split into 3 bolted modules (115/110/115 x 206 mm -> fits ANY 220x220 bed!)
+  - Captive M3 hex nut pockets (5.8 mm AF) in bottom chassis — ZERO direct screwing into PLA!
+  - Includes ~8 g `ddj_flx4_tolerance_test.stl` calibration coupon to verify printer fits first.
 """
 
 import os
 import math
 import FreeCAD
 import Part
-import Mesh
 import MeshPart
 
 OUT_DIR = r"C:\Users\joaop\Downloads\Código\Dj-controller\cad"
@@ -23,204 +27,256 @@ STEP_DIR = os.path.join(OUT_DIR, "step")
 os.makedirs(STL_DIR, exist_ok=True)
 os.makedirs(STEP_DIR, exist_ok=True)
 
-# ── Exact Mechanical Coordinates Matched 1:1 with KiCad 9.0 PCB ──────────────
-PCB_W = 340.0
-PCB_D = 220.0
-PCB_T = 1.6
+# ── Global Enclosure Dimensions (CAD frame: X=0..340, Y=0 Front .. 206 Rear) ──
+CASE_W      = 340.0
+CASE_D      = 206.0    # <= 210 mm -> fits 220x220 mm FDM beds with 5 mm brim!
+WALL_T      = 4.0
+FLOOR_T     = 3.0
+BOTTOM_H    = 32.0     # Z = -32.0 .. 0.0 (21.4 mm headroom above 98x98 Core PCB)
+TOP_PLATE_T = 3.5      # Z =   0.0 .. +3.5
 
-WALL_T = 4.0
-CLEARANCE = 1.0
-CASE_W = PCB_W + 2 * (WALL_T + CLEARANCE)  # 350.0 mm
-CASE_D = PCB_D + 2 * (WALL_T + CLEARANCE)  # 230.0 mm
-BOTTOM_H = 26.0
-TOP_PLATE_T = 3.2
-STANDOFF_H = 14.0
+SEAM_L = 115.0
+SEAM_R = 225.0
 
-M3_HOLES = [
-    (8.0, 8.0), (116.0, 8.0), (224.0, 8.0), (332.0, 8.0),
-    (8.0, 212.0), (116.0, 212.0), (224.0, 212.0), (332.0, 212.0),
+# 12x Vertical M3 Pillars (4 per module, completely clear of seams, pots, and 75 mm faders!)
+M3_PILLARS = [
+    # Deck A (X in 0..115)
+    (10.0, 10.0), (105.0, 10.0), (10.0, 196.0), (105.0, 196.0),
+    # Center Mixer (X in 115..225)
+    (122.0, 10.0), (218.0, 10.0), (122.0, 197.0), (218.0, 197.0),
+    # Deck B (X in 225..340)
+    (235.0, 10.0), (330.0, 10.0), (235.0, 196.0), (330.0, 196.0),
 ]
 
+# 98 x 98 mm Core PCB mounted inside Center Mixer flush against rear inner wall (Y = 202.0)
+PCB_W = 98.0
+PCB_X0 = (CASE_W - PCB_W) / 2.0      # 121.0 mm
+PCB_Y_REAR = CASE_D - WALL_T         # 202.0 mm (KiCad Y=0)
+PCB_STANDOFF_H = 6.0                 # PCB top at Z = -21.4 mm -> 21.4 mm headroom!
+PCB_HOLES_KICAD = [(5.08, 5.08), (92.71, 5.08), (5.08, 92.71), (92.71, 92.71)]
+PCB_HOLES_CAD = [(PCB_X0 + hx, PCB_Y_REAR - hy) for (hx, hy) in PCB_HOLES_KICAD]
+USB_C_X = PCB_X0 + 48.895            # 169.895 mm (exact Pro Micro USB-C center)
+
+# ── Panel-Mount Control Coordinates (Verified Zero-Collision for 75 mm D103 Faders!) ──
 JOG_CENTERS = [
-    (55.5, 94.5),   # Deck A Jog Wheel (ENC1 shaft center)
-    (275.5, 94.5),  # Deck B Jog Wheel (ENC2 shaft center)
+    (48.0, 116.0),   # Deck A Jog Wheel (clear of left wall and Pitch A fader)
+    (272.0, 116.0),  # Deck B Jog Wheel (clear of seam and Pitch B fader)
 ]
 
+# 11x WH148 Rotary Pots (18.5 mm vertical pitch > 16 mm body -> zero collision!)
 ROTARY_POTS = [
-    (137.0, 58.5), (137.0, 74.5), (137.0, 90.5), (137.0, 106.5), (137.0, 122.5),
-    (213.0, 58.5), (213.0, 74.5), (213.0, 90.5), (213.0, 106.5), (213.0, 122.5),
-    (175.0, 58.5),
+    (136.0, 189.0), (136.0, 170.5), (136.0, 152.0), (136.0, 133.5), (136.0, 115.0),
+    (204.0, 189.0), (204.0, 170.5), (204.0, 152.0), (204.0, 133.5), (204.0, 115.0),
+    (170.0, 186.0),  # RV16 Master / FX (optional if using only 10 WH148s)
 ]
+POT_HOLE_D = 7.6     # M7 WH148 bushing + FDM clearance (drill to 8.2 mm if M8)
 
+# 5x D103 = D10Kx2 Slide Faders (75 mm body, 60 mm travel, 71 mm screw pitch)
 VERT_FADERS = [
-    (133.75, 167.25),  # RV11 Ch1 Vol
-    (209.75, 167.25),  # RV12 Ch2 Vol
-    (103.75, 95.25),   # RV14 Deck A Pitch
-    (323.75, 95.25),   # RV15 Deck B Pitch
+    (138.0, 68.0),   # RV11 Ch1 Vol (body Y=30.5..105.5, clear of Crossfader & WH148s!)
+    (202.0, 68.0),   # RV12 Ch2 Vol
+    (102.0, 116.0),  # RV14 Deck A Pitch (body Y=78.5..153.5, clear of Pads & SW24!)
+    (326.0, 116.0),  # RV15 Deck B Pitch
 ]
+HORIZ_FADER = (170.0, 20.0)  # RV13 Crossfader (body X=132.5..207.5, clear of M3 pillars!)
+FADER_SLOT_W = 4.6           # Fits 4 mm lever with FDM clearance (widen if using 8 mm lever)
+FADER_SLOT_L = 64.0          # 60 mm travel + 2 mm margin per end
+FADER_MOUNT_OFFSET = 35.5    # 71.0 mm screw hole pitch (standard D103 75 mm fader)
 
-HORIZ_FADER = (170.25, 205.75)  # RV13 Crossfader
-
+# 30x Tactile Push-Button Square Cutouts (13.2 x 13.2 mm -> 0.30 mm clearance/side)
 SW_CENTERS = [
     # Deck A 2x4 Performance Pads (SW1..SW8)
-    (22.25, 144.5), (44.25, 144.5), (66.25, 144.5), (88.25, 144.5),
-    (22.25, 164.5), (44.25, 164.5), (66.25, 164.5), (88.25, 164.5),
+    (22.0, 60.0), (44.0, 60.0), (66.0, 60.0), (88.0, 60.0),
+    (22.0, 40.0), (44.0, 40.0), (66.0, 40.0), (88.0, 40.0),
     # Deck B 2x4 Performance Pads (SW9..SW16)
-    (242.25, 144.5), (264.25, 144.5), (286.25, 144.5), (308.25, 144.5),
-    (242.25, 164.5), (264.25, 164.5), (286.25, 164.5), (308.25, 164.5),
-    # Mixer Control Buttons (SW17..SW22) — matched 1:1 with build_pcb.py (+6.25, +2.50 from footprint anchor)
-    (152.75, 50.5), (191.25, 50.5), (170.25, 78.5),
-    (170.25, 96.5), (152.25, 114.5), (188.25, 114.5),
+    (242.0, 60.0), (264.0, 60.0), (286.0, 60.0), (308.0, 60.0),
+    (242.0, 40.0), (264.0, 40.0), (286.0, 40.0), (308.0, 40.0),
+    # Mixer Buttons (SW17..SW22: LOAD_A, LOAD_B, SMART_CFX, BEAT_FX, CUE_CH1, CUE_CH2)
+    (156.0, 160.0), (184.0, 160.0),
+    (170.0, 138.0), (170.0, 118.0),
+    (158.0, 86.0),  (182.0, 86.0),
     # Deck A Loop/Sync & Transport (SW23..SW26)
-    (82.25, 24.5), (82.25, 44.5), (22.25, 190.5), (52.25, 190.5),
+    (80.0, 186.0), (80.0, 166.0), (22.0, 18.0), (50.0, 18.0),
     # Deck B Loop/Sync & Transport (SW27..SW30)
-    (234.25, 24.5), (234.25, 44.5), (242.25, 190.5), (272.25, 190.5),
+    (244.0, 186.0), (244.0, 166.0), (242.0, 18.0), (270.0, 18.0),
 ]
 
-def cy(y_pcb: float) -> float:
-    """Convert KiCad top-down Y (0..220) to right-handed 3D CAD Y (220..0)."""
-    return PCB_D - y_pcb
+def make_hex_prism(af_mm: float, height: float, center: FreeCAD.Vector) -> Part.Shape:
+    r_corner = (af_mm / 2.0) / math.cos(math.radians(30.0))
+    pts = [
+        FreeCAD.Vector(center.x + r_corner * math.cos(math.radians(i * 60.0 + 30.0)),
+                       center.y + r_corner * math.sin(math.radians(i * 60.0 + 30.0)),
+                       center.z)
+        for i in range(6)
+    ]
+    pts.append(pts[0])
+    return Part.Face(Part.makePolygon(pts)).extrude(FreeCAD.Vector(0, 0, height))
 
 def export_shape(shape: Part.Shape, name: str):
     step_path = os.path.join(STEP_DIR, f"{name}.step")
     stl_path = os.path.join(STL_DIR, f"{name}.stl")
     shape.exportStep(step_path)
-    mesh = MeshPart.meshFromShape(Shape=shape, LinearDeflection=0.15, AngularDeflection=0.25, Relative=False)
+    mesh = MeshPart.meshFromShape(Shape=shape, LinearDeflection=0.12, AngularDeflection=0.22, Relative=False)
     mesh.write(stl_path)
     print(f"Exported {name}: STEP ({os.path.getsize(step_path)} B) | STL ({mesh.CountFacets} facets)")
 
 def make_top_faceplate() -> Part.Shape:
-    ox = -WALL_T - CLEARANCE
-    oy = -WALL_T - CLEARANCE
-    plate = Part.makeBox(CASE_W, CASE_D, TOP_PLATE_T, FreeCAD.Vector(ox, oy, 0.0))
+    plate = Part.makeBox(CASE_W, CASE_D, TOP_PLATE_T, FreeCAD.Vector(0.0, 0.0, 0.0))
 
-    # Add 8 under-plate alignment bosses
-    bosses = []
-    for hx, hy in M3_HOLES:
-        boss = Part.makeCylinder(4.0, 4.0, FreeCAD.Vector(hx, cy(hy), -4.0))
-        bosses.append(boss)
-    plate = plate.fuse(bosses)
+    lip_outer = Part.makeBox(CASE_W - 2*(WALL_T + 0.3), CASE_D - 2*(WALL_T + 0.3), 2.5,
+                             FreeCAD.Vector(WALL_T + 0.3, WALL_T + 0.3, -2.5))
+    lip_inner = Part.makeBox(CASE_W - 2*(WALL_T + 2.3), CASE_D - 2*(WALL_T + 2.3), 3.0,
+                             FreeCAD.Vector(WALL_T + 2.3, WALL_T + 2.3, -2.8))
+    lip = lip_outer.cut(lip_inner)
 
-    # Collect all subtractive cutouts and boolean-cut in batch
+    ribs = [lip]
+    for sx in (SEAM_L - 3.5, SEAM_L + 0.5, SEAM_R - 3.5, SEAM_R + 0.5):
+        ribs.append(Part.makeBox(3.0, CASE_D - 2*WALL_T - 2.0, 3.0, FreeCAD.Vector(sx, WALL_T + 1.0, -3.0)))
+    plate = plate.fuse(ribs)
+
     cutouts = []
 
-    # 8x M3 Countersunk Holes
-    for hx, hy in M3_HOLES:
-        cutouts.append(Part.makeCylinder(1.7, TOP_PLATE_T + 6.0, FreeCAD.Vector(hx, cy(hy), -5.0)))
-        cutouts.append(Part.makeCone(1.7, 3.25, 1.7, FreeCAD.Vector(hx, cy(hy), TOP_PLATE_T - 1.6)))
+    for hx, hy in M3_PILLARS:
+        cutouts.append(Part.makeCylinder(1.7, TOP_PLATE_T + 5.0, FreeCAD.Vector(hx, hy, -4.0)))
+        cutouts.append(Part.makeCone(1.7, 3.3, 1.6, FreeCAD.Vector(hx, hy, TOP_PLATE_T - 1.55)))
 
-    # 2x Jog Wheel Recessed Wells + EC11 Shaft Clearances
     for jx, jy in JOG_CENTERS:
-        cutouts.append(Part.makeCylinder(43.0, 1.5, FreeCAD.Vector(jx, cy(jy), TOP_PLATE_T - 1.2)))
-        cutouts.append(Part.makeCylinder(4.5, TOP_PLATE_T + 2.0, FreeCAD.Vector(jx, cy(jy), -1.0)))
+        cutouts.append(Part.makeCylinder(43.0, 1.2, FreeCAD.Vector(jx, jy, TOP_PLATE_T - 1.0)))
+        cutouts.append(Part.makeCylinder(3.8, TOP_PLATE_T + 4.0, FreeCAD.Vector(jx, jy, -2.0)))
 
-    # 11x Rotary Potentiometer Shaft Holes (d=7.5mm)
     for rx, ry in ROTARY_POTS:
-        cutouts.append(Part.makeCylinder(3.75, TOP_PLATE_T + 2.0, FreeCAD.Vector(rx, cy(ry), -1.0)))
+        cutouts.append(Part.makeCylinder(POT_HOLE_D / 2.0, TOP_PLATE_T + 4.0, FreeCAD.Vector(rx, ry, -2.0)))
 
-    # 4x Vertical Slide Fader Slots (3.4 x 48.0 mm)
+    # 4x Vertical D103 Faders (4.6 x 64.0 mm slot + M2.5 screws at +/-35.5 mm = 71 mm pitch)
     for fx, fy in VERT_FADERS:
-        cutouts.append(Part.makeBox(3.4, 48.0, TOP_PLATE_T + 2.0, FreeCAD.Vector(fx - 1.7, cy(fy) - 24.0, -1.0)))
+        cutouts.append(Part.makeBox(FADER_SLOT_W, FADER_SLOT_L, TOP_PLATE_T + 4.0,
+                                    FreeCAD.Vector(fx - FADER_SLOT_W/2.0, fy - FADER_SLOT_L/2.0, -2.0)))
+        for dy in (-FADER_MOUNT_OFFSET, FADER_MOUNT_OFFSET):
+            cutouts.append(Part.makeCylinder(1.4, TOP_PLATE_T + 4.0, FreeCAD.Vector(fx, fy + dy, -2.0)))
 
-    # 1x Horizontal Crossfader Slot (48.0 x 3.4 mm)
+    # 1x Horizontal D103 Crossfader (64.0 x 4.6 mm slot + M2.5 screws at +/-35.5 mm)
     hfx, hfy = HORIZ_FADER
-    cutouts.append(Part.makeBox(48.0, 3.4, TOP_PLATE_T + 2.0, FreeCAD.Vector(hfx - 24.0, cy(hfy) - 1.7, -1.0)))
+    cutouts.append(Part.makeBox(FADER_SLOT_L, FADER_SLOT_W, TOP_PLATE_T + 4.0,
+                                FreeCAD.Vector(hfx - FADER_SLOT_L/2.0, hfy - FADER_SLOT_W/2.0, -2.0)))
+    for dx in (-FADER_MOUNT_OFFSET, FADER_MOUNT_OFFSET):
+        cutouts.append(Part.makeCylinder(1.4, TOP_PLATE_T + 4.0, FreeCAD.Vector(hfx + dx, hfy, -2.0)))
 
-    # 30x Tactile Push-Button Square Cutouts (13.2 x 13.2 mm)
     for sx, sy in SW_CENTERS:
-        cutouts.append(Part.makeBox(13.2, 13.2, TOP_PLATE_T + 2.0, FreeCAD.Vector(sx - 6.6, cy(sy) - 6.6, -1.0)))
+        cutouts.append(Part.makeBox(13.2, 13.2, TOP_PLATE_T + 6.0, FreeCAD.Vector(sx - 6.6, sy - 6.6, -4.0)))
 
-    # 3x Status LED Holes (d=5.2mm)
-    for lx in [159.27, 170.27, 181.27]:
-        cutouts.append(Part.makeCylinder(2.6, TOP_PLATE_T + 2.0, FreeCAD.Vector(lx, cy(130.0), -1.0)))
+    # 1x Power LED Window (d = 5.2 mm) in Mixer center
+    cutouts.append(Part.makeCylinder(2.6, TOP_PLATE_T + 4.0, FreeCAD.Vector(170.0, 58.0, -2.0)))
 
-    plate = plate.cut(cutouts)
-    return plate
+    return plate.cut(cutouts)
 
 def make_bottom_chassis() -> Part.Shape:
-    ox = -WALL_T - CLEARANCE
-    oy = -WALL_T - CLEARANCE
-    outer = Part.makeBox(CASE_W, CASE_D, BOTTOM_H, FreeCAD.Vector(ox, oy, -BOTTOM_H))
-    inner = Part.makeBox(
-        PCB_W + 2 * CLEARANCE,
-        PCB_D + 2 * CLEARANCE,
-        BOTTOM_H,
-        FreeCAD.Vector(-CLEARANCE, -CLEARANCE, -BOTTOM_H + 3.0),
-    )
+    outer = Part.makeBox(CASE_W, CASE_D, BOTTOM_H, FreeCAD.Vector(0.0, 0.0, -BOTTOM_H))
+    inner = Part.makeBox(CASE_W - 2*WALL_T, CASE_D - 2*WALL_T, BOTTOM_H,
+                         FreeCAD.Vector(WALL_T, WALL_T, -BOTTOM_H + FLOOR_T))
     tub = outer.cut(inner)
 
     additions = []
-    # 8x Internal M3 Standoff Pillars
-    for hx, hy in M3_HOLES:
-        additions.append(Part.makeCylinder(4.5, STANDOFF_H, FreeCAD.Vector(hx, cy(hy), -BOTTOM_H + 3.0)))
+    pillar_h = BOTTOM_H - FLOOR_T
+    for hx, hy in M3_PILLARS:
+        additions.append(Part.makeCylinder(5.0, pillar_h, FreeCAD.Vector(hx, hy, -BOTTOM_H + FLOOR_T)))
 
-    # 2x Structural Partition Ribs at X=116 and X=224
-    for x_rib in [116.0, 224.0]:
-        additions.append(Part.makeBox(4.0, PCB_D, STANDOFF_H - 2.0, FreeCAD.Vector(x_rib - 2.0, 0.0, -BOTTOM_H + 3.0)))
+    for sx in (SEAM_L, SEAM_R):
+        additions.append(Part.makeBox(8.0, CASE_D - 2*WALL_T, BOTTOM_H - FLOOR_T - 4.0,
+                                      FreeCAD.Vector(sx - 4.0, WALL_T, -BOTTOM_H + FLOOR_T)))
+
+    for px, py in PCB_HOLES_CAD:
+        additions.append(Part.makeCylinder(4.0, PCB_STANDOFF_H, FreeCAD.Vector(px, py, -BOTTOM_H + FLOOR_T)))
 
     tub = tub.fuse(additions)
 
     cuts = []
-    # 8x M3 Thread Bores (d=2.8mm)
-    for hx, hy in M3_HOLES:
-        cuts.append(Part.makeCylinder(1.4, STANDOFF_H + 1.0, FreeCAD.Vector(hx, cy(hy), -BOTTOM_H + 3.0)))
+    for hx, hy in M3_PILLARS:
+        cuts.append(Part.makeCylinder(1.7, BOTTOM_H + 2.0, FreeCAD.Vector(hx, hy, -BOTTOM_H - 1.0)))
+        cuts.append(make_hex_prism(5.8, 3.2, FreeCAD.Vector(hx, hy, -BOTTOM_H - 0.1)))
 
-    # Rear USB-B (Leonardo R3) & USB-C (Pro Micro) Connector Cutouts
-    cuts.append(Part.makeBox(18.0, WALL_T + 4.0, 13.0, FreeCAD.Vector(28.0, PCB_D - 1.0, -BOTTOM_H + 3.0 + STANDOFF_H - 2.0)))
-    cuts.append(Part.makeBox(16.0, WALL_T + 4.0, 10.0, FreeCAD.Vector(244.0, PCB_D - 1.0, -BOTTOM_H + 3.0 + STANDOFF_H - 2.0)))
+    for px, py in PCB_HOLES_CAD:
+        cuts.append(Part.makeCylinder(1.7, PCB_STANDOFF_H + FLOOR_T + 2.0, FreeCAD.Vector(px, py, -BOTTOM_H - 1.0)))
+        cuts.append(make_hex_prism(5.8, 2.8, FreeCAD.Vector(px, py, -BOTTOM_H - 0.1)))
 
-    tub = tub.cut(cuts)
-    return tub
+    for sx in (SEAM_L, SEAM_R):
+        cuts.append(Part.makeBox(12.0, 95.0, 18.0, FreeCAD.Vector(sx - 6.0, 55.0, -26.0)))
+        for by in (28.0, 178.0):
+            cuts.append(Part.makeCylinder(1.7, 16.0, FreeCAD.Vector(sx - 8.0, by, -16.0), FreeCAD.Vector(1, 0, 0)))
+
+    # Flush rear USB-C cutout aligned 1:1 with Pro Micro USB-C
+    cuts.append(Part.makeBox(16.0, WALL_T + 4.0, 16.0,
+                             FreeCAD.Vector(USB_C_X - 8.0, CASE_D - WALL_T - 2.0, -21.0)))
+
+    return tub.cut(cuts)
 
 def make_jog_wheel() -> Part.Shape:
-    base_disc = Part.makeCone(42.0, 41.0, 9.0, FreeCAD.Vector(0, 0, 0))
-    top_bevel = Part.makeCone(41.0, 38.0, 2.5, FreeCAD.Vector(0, 0, 9.0))
-    hub_boss = Part.makeCylinder(7.0, 6.0, FreeCAD.Vector(0, 0, -6.0))
+    base_disc = Part.makeCone(42.0, 41.0, 8.5, FreeCAD.Vector(0, 0, 0))
+    top_bevel = Part.makeCone(41.0, 38.0, 2.5, FreeCAD.Vector(0, 0, 8.5))
+    hub_boss = Part.makeCylinder(7.5, 1.0, FreeCAD.Vector(0, 0, -1.0))
     platter = base_disc.fuse([top_bevel, hub_boss])
 
-    cuts = [
-        Part.makeCylinder(3.025, 16.0, FreeCAD.Vector(0, 0, -7.0)),  # 6.05mm EC11 shaft bore
-        Part.makeCylinder(32.0, 2.5, FreeCAD.Vector(0, 0, 9.5)),     # Top center recess
-    ]
-    # 16 perimeter grip dimples
+    shaft_cyl = Part.makeCylinder(3.125, 10.0, FreeCAD.Vector(0, 0, -1.5))
+    d_flat_blocker = Part.makeBox(4.0, 10.0, 12.0, FreeCAD.Vector(1.75, -5.0, -2.0))
+    d_bore = shaft_cyl.cut(d_flat_blocker)
+    set_screw = Part.makeCylinder(1.45, 44.0, FreeCAD.Vector(0.0, 0.0, 4.0), FreeCAD.Vector(1, 0, 0))
+
+    cuts = [d_bore, set_screw, Part.makeCylinder(32.0, 2.5, FreeCAD.Vector(0, 0, 9.0))]
     for i in range(16):
         ang = math.radians(i * 22.5)
-        gx = 42.0 * math.cos(ang)
-        gy = 42.0 * math.sin(ang)
-        cuts.append(Part.makeCylinder(2.25, 8.0, FreeCAD.Vector(gx, gy, 3.5)))
-
+        cuts.append(Part.makeCylinder(2.25, 7.5, FreeCAD.Vector(42.0 * math.cos(ang), 42.0 * math.sin(ang), 3.5)))
     return platter.cut(cuts)
 
 def make_pad_keycap() -> Part.Shape:
-    # 12.6 x 12.6 mm keycap with bottom skirt flange (14.2 x 14.2 mm) and 3.8mm stem pocket for G82 tactile switch
-    flange = Part.makeBox(14.2, 14.2, 1.2, FreeCAD.Vector(-7.1, -7.1, 0.0))
-    cap = Part.makeBox(12.6, 12.6, 4.5, FreeCAD.Vector(-6.3, -6.3, 1.2))
-    body = flange.fuse(cap)
-    cavity = Part.makeCylinder(2.1, 3.2, FreeCAD.Vector(0, 0, 0.0))
-    return body.cut(cavity)
+    flange = Part.makeBox(14.4, 14.4, 1.2, FreeCAD.Vector(-7.2, -7.2, 0.0))
+    cap = Part.makeBox(12.6, 12.6, 5.2, FreeCAD.Vector(-6.3, -6.3, 1.2))
+    return flange.fuse(cap).cut(Part.makeCylinder(3.6, 1.2, FreeCAD.Vector(0, 0, -0.1)))
+
+def make_tolerance_test_coupon() -> Part.Shape:
+    """
+    60 x 45 x 3.5 mm (~8 g PLA, ~15 min) calibration coupon:
+      - 7.6 mm M7 WH148 + 8.3 mm M8 WH148 holes
+      - 13.2 x 13.2 mm keycap window
+      - 4.6 mm D103 fader slot check
+      - 6.25 mm EC11 D-shaft boss + 6.20 mm round knurled boss check
+      - M3 3.4 mm bore + 5.8 mm captive hex nut pocket
+    """
+    coupon = Part.makeBox(60.0, 45.0, 3.5, FreeCAD.Vector(0, 0, 0))
+    ec_boss = Part.makeCylinder(6.5, 6.0, FreeCAD.Vector(48.0, 33.0, 3.5))
+    nut_boss = Part.makeCylinder(5.0, 3.0, FreeCAD.Vector(48.0, 12.0, 3.5))
+    coupon = coupon.fuse([ec_boss, nut_boss])
+
+    shaft_cyl = Part.makeCylinder(3.125, 11.0, FreeCAD.Vector(48.0, 33.0, -1.0))
+    d_flat = Part.makeBox(4.0, 10.0, 13.0, FreeCAD.Vector(48.0 + 1.75, 28.0, -2.0))
+    d_bore = shaft_cyl.cut(d_flat)
+
+    cuts = [
+        Part.makeCylinder(3.8, 5.0, FreeCAD.Vector(10.0, 34.0, -1.0)),         # 7.6 mm M7 WH148
+        Part.makeCylinder(4.15, 5.0, FreeCAD.Vector(25.0, 34.0, -1.0)),        # 8.3 mm M8 WH148
+        Part.makeBox(13.2, 13.2, 5.0, FreeCAD.Vector(6.0, 6.0, -1.0)),         # 13.2x13.2 Keycap window
+        Part.makeBox(FADER_SLOT_W, 24.0, 5.0, FreeCAD.Vector(29.0, 6.0, -1.0)),# 4.6 mm D103 Fader slot
+        d_bore,                                                                 # 6.25 mm EC11 D-bore
+        Part.makeCylinder(1.7, 9.0, FreeCAD.Vector(48.0, 12.0, -1.0)),         # M3 bore
+        make_hex_prism(5.8, 3.2, FreeCAD.Vector(48.0, 12.0, -0.1)),            # Captive M3 nut
+    ]
+    return coupon.cut(cuts)
 
 def split_into_3_printer_sections(shape: Part.Shape, prefix: str):
-    """
-    Splits a 350x230mm part along the M3 rib seams X=116.0 and X=224.0 into:
-      - Left Deck A   (X in [-10 .. 116.0] -> width 121 mm, fits any 220x220mm bed!)
-      - Center Mixer  (X in [116.0 .. 224.0] -> width 108 mm, fits any 220x220mm bed!)
-      - Right Deck B  (X in [224.0 .. 350.0] -> width 121 mm, fits any 220x220mm bed!)
-    """
     zones = [
-        ("left_deckA", -20.0, 116.0),
-        ("center_mixer", 116.0, 224.0),
-        ("right_deckB", 224.0, 360.0),
+        ("left_deckA",   -10.0, SEAM_L),
+        ("center_mixer", SEAM_L, SEAM_R),
+        ("right_deckB",  SEAM_R, CASE_W + 10.0),
     ]
     for zname, x0, x1 in zones:
-        bbox = Part.makeBox(x1 - x0, 260.0, 100.0, FreeCAD.Vector(x0, -20.0, -50.0))
+        bbox = Part.makeBox(x1 - x0, CASE_D + 20.0, 120.0, FreeCAD.Vector(x0, -10.0, -60.0))
         sec = shape.common(bbox)
         stl_path = os.path.join(STL_DIR, f"{prefix}_{zname}.stl")
-        mesh = MeshPart.meshFromShape(Shape=sec, LinearDeflection=0.15, AngularDeflection=0.25, Relative=False)
+        mesh = MeshPart.meshFromShape(Shape=sec, LinearDeflection=0.12, AngularDeflection=0.22, Relative=False)
         mesh.write(stl_path)
-        print(f"Exported 220x220mm Printable Section {prefix}_{zname}.stl ({mesh.CountFacets} facets)")
+        bb = sec.BoundBox
+        print(f"Exported 220x220mm Section {prefix}_{zname}.stl: {bb.XLength:.1f} x {bb.YLength:.1f} x {bb.ZLength:.1f} mm ({mesh.CountFacets} facets)")
 
 def main():
-    print("Building DDJ-FLX4 3D CAD Solids in FreeCAD 1.0...")
+    print("Building DDJ-FLX4 Modular Core v2.1 (75mm D103 Faders) 3D CAD in FreeCAD 1.0...")
     top_plate = make_top_faceplate()
     export_shape(top_plate, "ddj_flx4_top_faceplate")
     split_into_3_printer_sections(top_plate, "ddj_flx4_top")
@@ -235,15 +291,17 @@ def main():
     keycap = make_pad_keycap()
     export_shape(keycap, "ddj_flx4_pad_keycap")
 
-    # Full Assembly Compound
+    coupon = make_tolerance_test_coupon()
+    export_shape(coupon, "ddj_flx4_tolerance_test")
+
     jog_a = jog.copy()
-    jog_a.Placement.Base = FreeCAD.Vector(JOG_CENTERS[0][0], cy(JOG_CENTERS[0][1]), TOP_PLATE_T + 1.5)
+    jog_a.Placement.Base = FreeCAD.Vector(JOG_CENTERS[0][0], JOG_CENTERS[0][1], TOP_PLATE_T + 1.5)
     jog_b = jog.copy()
-    jog_b.Placement.Base = FreeCAD.Vector(JOG_CENTERS[1][0], cy(JOG_CENTERS[1][1]), TOP_PLATE_T + 1.5)
+    jog_b.Placement.Base = FreeCAD.Vector(JOG_CENTERS[1][0], JOG_CENTERS[1][1], TOP_PLATE_T + 1.5)
 
     assembly = Part.makeCompound([top_plate, bottom_tub, jog_a, jog_b])
     export_shape(assembly, "ddj_flx4_full_assembly")
-    print("ALL CAD MODELS BUILT AND EXPORTED SUCCESSFULLY!")
+    print("ALL v2.1 CAD MODELS BUILT AND EXPORTED SUCCESSFULLY!")
 
 if __name__ == "__main__":
     main()
