@@ -1,38 +1,53 @@
 /**
  * ============================================================================
- * DDJ-FLX4 Modular Core v2.0 — Native USB-MIDI DJ Controller Firmware
+ * DDJ-FLX4 Modular Core v2.3 — Native USB-MIDI DJ Controller Firmware
  * Target MCU: ATmega32U4 (Arduino Pro Micro USB-C 5V/16MHz — Default)
  *             Optional: Arduino Leonardo R3 (uncomment TARGET_LEONARDO)
  * ============================================================================
  *
- * v2.0 Audited Fixes:
+ * v2.3 Audited Fixes:
  *  1. Atomic PIND register reads inside encoder ISRs (62.5 ns, zero A/B skew)
- *  2. Continuous EMA filter decoupled from output hysteresis (no stuck values,
- *     guaranteed 0..127 and 0..16383 full-scale endpoints)
- *  3. 14-bit MIDI Pitch Bend (0xE0 / 0xE1) for Deck A & Deck B Tempo Faders
- *     (0.020 BPM resolution @ 128 BPM +/-8% — 8x finer than 7-bit CC)
- *  4. Explicit board target macro (no accidental Leonardo/Pro Micro pin mixup)
- *  5. Pure INPUT on EC11 pins (external 10k pull-up + 10k series + 10nF RC)
- *  6. 0.00% analog crosstalk paired with v2 16x 100nF pre-mux filter bank
+ *  2. Continuous EMA filter + hysteresis applied on RAW filtered ADC BEFORE
+ *     log-taper LUT (eliminates 4.06x noise amplification jitter in segment 0)
+ *  3. Linearization covers all 5x D103 log slide faders (CH10/11 Vol, CH12 Xfade,
+ *     CH13/14 Pitch) + configurable pitch center deadzone
+ *  4. #define HAS_RV16 0 skips ONLY U1 analog channel 15 (keeps U2 Pad SW16
+ *     and 1-bit Gray code mux scan order intact; never jumper CH15 to GND/+5V)
+ *  5. Open-drain 4x4 matrix scanning (inactive rows in INPUT Hi-Z, eliminating
+ *     >40 mA pin-to-pin short hazard if a 1N4148 diode is soldered reversed)
+ *  6. Cyclic 4-bit Gray code scan order for CD74HC4067 S0..S3 (always 1 bit
+ *     change per step across PD4/PC6/PD7/PE6 -> zero transient mux channels)
+ *  7. 14-bit MIDI Pitch Bend (0xE0 / 0xE1) for Deck A & Deck B Tempo Faders
  * ============================================================================
  */
 
 #include <Arduino.h>
 #include "MIDIUSB.h"
 
-// ── Explicit Board Selection (Uncomment ONLY ONE) ────────────────────────────
+// ── Explicit Board & Hardware Options ────────────────────────────────────────
 #define TARGET_PROMICRO
 // #define TARGET_LEONARDO
 
-// Linearize D103 (Logarithmic / Audio Taper D10Kx2) slide faders for Crossfader & Pitch A/B
-// Set to 1 if using D103 (Curve D/A log) faders; set to 0 for linear B10K slide faders.
+// Set to 1 if an 11th WH148 pot (RV16 Master/FX) is wired to POT_CH15;
+// Set to 0 if building with 10x WH148 (skips U1 CH15 analog read only; keeps U2 SW16 active).
+#define HAS_RV16 0
+
+// Linearize D103 (Logarithmic / Audio Taper D10Kx2) slide faders (CH10..CH14)
+// Set to 1 for D103 log faders; set to 0 for linear B10K slide faders.
 #define LINEARIZE_D103_LOG_FADERS 1
 
-// 17-point piecewise-linear inverse audio-taper LUT (maps 15%-at-midpoint log ADC -> 0..1023 linear)
-// Calibrate if needed by checking ADC reading at physical 50% travel via Serial Monitor.
+// Exact 17-point piecewise-linear inverse for 15%-at-midpoint exponential taper (a = (1/0.15 - 1)^2)
+// Calibrate per physical fader by measuring ADC at 0/25/50/75/100% travel.
 constexpr uint16_t LOG_INV_LUT[17] = {
-    0, 260, 410, 512, 590, 652, 705, 752, 795, 834, 869, 901, 930, 956, 980, 1002, 1023
+    0, 319, 468, 567, 641, 700, 749, 791, 828, 861, 890, 917, 941, 964, 985, 1005, 1023
 };
+
+// Cyclic 4-bit Gray code mux scan order (single-bit transition per step, including wrap 8->0)
+constexpr uint8_t GRAY_ORDER[16] = {
+    0, 1, 3, 2, 6, 7, 5, 4, 12, 13, 15, 14, 10, 11, 9, 8
+};
+
+constexpr uint16_t PITCH_CENTER_DEADZONE = 8; // Snap linearized pitch within 512 +/- 8 to exact 0%
 
 inline uint16_t linearizeLogAdc(uint16_t adc) {
   uint8_t idx = adc >> 6;           // 0..15 (step 64)
@@ -200,18 +215,21 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(PIN_ENC2_A), isrEnc2, CHANGE);
   attachInterrupt(digitalPinToInterrupt(PIN_ENC2_B), isrEnc2, CHANGE);
 
-  // 4x4 Diode-Isolated Switch Matrix (external 10k pull-ups R7..R10 on COL0..3)
+  // 4x4 Diode-Isolated Switch Matrix (open-drain: inactive rows kept INPUT Hi-Z to prevent >40mA shorts!)
   for (uint8_t r = 0; r < 4; r++) {
-    pinMode(ROW_PINS[r], OUTPUT);
-    digitalWrite(ROW_PINS[r], HIGH);
+    pinMode(ROW_PINS[r], INPUT);
   }
   for (uint8_t c = 0; c < 4; c++) {
     pinMode(COL_PINS[c], INPUT);
   }
 
-  // Prime continuous EMA accumulators
-  for (uint8_t ch = 0; ch < 16; ch++) {
+  // Prime continuous EMA accumulators in Gray code order
+  for (uint8_t idx = 0; idx < 16; idx++) {
+    uint8_t ch = GRAY_ORDER[idx];
     selectMuxChannel(ch);
+#if !HAS_RV16
+    if (ch == 15) continue;
+#endif
     analogRead(PIN_MUX1_ANALOG);
     uint16_t raw = analogRead(PIN_MUX1_ANALOG);
     analogEmaQ2[ch] = raw << 2;
@@ -222,11 +240,12 @@ void loop() {
   uint32_t now = millis();
   bool midiDirty = false;
 
-  // ── 1. Scan U1 (16 Analog Pots/Faders) & U2 (16 Performance Pads) ──────────
-  for (uint8_t ch = 0; ch < 16; ch++) {
+  // ── 1. Scan U1 (16 Analog Pots/Faders) & U2 (16 Performance Pads) in Gray Code Order ──
+  for (uint8_t idx = 0; idx < 16; idx++) {
+    uint8_t ch = GRAY_ORDER[idx];
     selectMuxChannel(ch);
 
-    // Read U2 Performance Pad (Active-LOW)
+    // Read U2 Performance Pad (Active-LOW) — ALWAYS runs on all 16 channels including SW16 (ch==15)!
     bool padPressed = (digitalRead(PIN_MUX2_PADS) == LOW);
     if (padPressed != padState[ch] && (now - padLastChange[ch] >= DEBOUNCE_PAD_MS)) {
       padState[ch] = padPressed;
@@ -240,6 +259,11 @@ void loop() {
       midiDirty = true;
     }
 
+#if !HAS_RV16
+    // Skip ONLY U1 analog read/emit for ch==15 when RV16 is not installed (keeps SW16 & Gray intact)
+    if (ch == 15) continue;
+#endif
+
     // Read U1 Analog Channel (dummy read + real read)
     analogRead(PIN_MUX1_ANALOG);
     uint16_t raw = analogRead(PIN_MUX1_ANALOG);
@@ -252,22 +276,27 @@ void loop() {
     if (raw <= ADC_EDGE_LOW)  filtered = 0;
     if (raw >= ADC_EDGE_HIGH) filtered = 1023;
 
-    // Optional software linearization for D103 (audio-taper) Crossfader (I12) & Pitch A/B (I13, I14)
-#if LINEARIZE_D103_LOG_FADERS
-    if (ch == 12 || ch == CH_PITCH_A || ch == CH_PITCH_B) {
-      filtered = linearizeLogAdc(filtered);
-    }
-#endif
-
     bool isPitch = (ch == CH_PITCH_A || ch == CH_PITCH_B);
     int16_t hyst = isPitch ? HYSTERESIS_PITCH_ADC : HYSTERESIS_CC_ADC;
 
+    // Hysteresis evaluated on RAW filtered ADC BEFORE LUT (prevents 4x gain jitter in segment 0!)
     if (abs(int16_t(filtered) - lastSentAdc[ch]) >= hyst ||
         ((filtered == 0 || filtered == 1023) && int16_t(filtered) != lastSentAdc[ch])) {
       lastSentAdc[ch] = int16_t(filtered);
+
+      uint16_t outVal = filtered;
+#if LINEARIZE_D103_LOG_FADERS
+      // Linearize ALL 5x D103 log slide faders: Vol Ch1/2 (10,11), Crossfader (12), Pitch A/B (13,14)
+      if (ch == 10 || ch == 11 || ch == 12 || isPitch) {
+        outVal = linearizeLogAdc(outVal);
+      }
+#endif
       if (isPitch) {
-        // 10-bit ADC (0..1023) -> full 14-bit MIDI Pitch Bend (0..16383)
-        uint16_t pb14 = (uint32_t(filtered) * 16383UL) / 1023UL;
+        if (abs(int16_t(outVal) - 512) <= int16_t(PITCH_CENTER_DEADZONE)) {
+          outVal = 512;
+        }
+        // 10-bit ADC (0..1023) -> full 14-bit MIDI Pitch Bend (0..16383; 512 -> exact 8192 center)
+        uint16_t pb14 = (outVal == 512) ? 8192U : uint16_t((uint32_t(outVal) * 16383UL) / 1023UL);
         uint8_t pbIdx = (ch == CH_PITCH_A) ? 0 : 1;
         if (pb14 != lastPitchBend[pbIdx]) {
           lastPitchBend[pbIdx] = pb14;
@@ -275,7 +304,7 @@ void loop() {
           midiDirty = true;
         }
       } else {
-        uint8_t ccVal = uint8_t((uint32_t(filtered) * 127UL + 511UL) / 1023UL);
+        uint8_t ccVal = uint8_t((uint32_t(outVal) * 127UL + 511UL) / 1023UL);
         if (ccVal != lastMidiCC[ch]) {
           lastMidiCC[ch] = ccVal;
           sendCC(ANALOG_MIDI_CH[ch], ANALOG_CC_NUM[ch], ccVal);
@@ -285,8 +314,9 @@ void loop() {
     }
   }
 
-  // ── 2. Scan 4x4 Diode-Isolated Transport/Mixer Matrix ──────────────────────
+  // ── 2. Scan 4x4 Diode-Isolated Transport/Mixer Matrix (Open-Drain Safe) ────
   for (uint8_t r = 0; r < 4; r++) {
+    pinMode(ROW_PINS[r], OUTPUT);
     digitalWrite(ROW_PINS[r], LOW);
     delayMicroseconds(10);
     for (uint8_t c = 0; c < 4; c++) {
@@ -302,7 +332,7 @@ void loop() {
         midiDirty = true;
       }
     }
-    digitalWrite(ROW_PINS[r], HIGH);
+    pinMode(ROW_PINS[r], INPUT);
   }
 
   // ── 3. Process Jog Wheel Quadrature Deltas (Relative Binary Offset 64±delta)

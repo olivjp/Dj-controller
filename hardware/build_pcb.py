@@ -124,7 +124,7 @@ def parse_v2_netlist():
     capacitors = [
         ("C1", "100nF_U1_DEC",  "+5V",      "GND"),
         ("C2", "100nF_U2_DEC",  "+5V",      "GND"),
-        ("C3", "1nF_ADC_SHUNT", "MUX1_ADC", "GND"),
+        ("C3", "DNP_OPT_100pF", "MUX1_ADC", "GND"),
         ("C4", "10nF_ENC1A",    "ENC1_A",   "GND"),
         ("C5", "10nF_ENC1B",    "ENC1_B",   "GND"),
         ("C6", "10nF_ENC2A",    "ENC2_A",   "GND"),
@@ -247,13 +247,20 @@ def build_pcb():
         seg.SetWidth(pcbnew.FromMM(0.15))
         board.Add(seg)
 
-    # 2. Clean Non-Overlapping Silkscreen Labels (away from pads & component outlines!)
+    # 2. Clean Non-Overlapping Silkscreen Labels (all >= 0.85 mm height -> 0 DRC!)
     silk_texts = [
-        ("DDJ-FLX4 CORE v2.2", 49.0, 50.0, 1.1),
+        ("DDJ-FLX4 CORE v2.3", 49.0, 50.0, 1.1),
         ("USB-C", 49.0, 10.5, 1.0),
         ("PRO MICRO", 49.0, 18.0, 1.0),
-        ("U1 C15-TOP", 26.67, 18.0, 0.9),
-        ("U2 C0-TOP", 71.12, 18.0, 0.9),
+        ("U1 C15-TOP", 26.67, 15.0, 0.85),
+        ("SIG-TOP", 26.67, 24.13, 0.85),
+        ("GND-BOT", 26.67, 41.91, 0.85),
+        ("C0-BOT", 26.67, 51.0, 0.85),
+        ("U2 C0-TOP", 71.12, 15.0, 0.85),
+        ("GND-TOP", 71.12, 24.13, 0.85),
+        ("SIG-BOT", 71.12, 41.91, 0.85),
+        ("C15-BOT", 71.12, 51.0, 0.85),
+        ("C3=DNP", 49.0, 46.8, 0.85),
         ("MATRIX", 28.0, 88.2, 0.9),
         ("EC11", 58.4, 88.2, 0.9),
     ]

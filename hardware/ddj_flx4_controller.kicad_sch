@@ -5,12 +5,12 @@
 	(uuid "58377035-ced1-5865-96b9-92faf487468e")
 	(paper "A2")
 	(title_block
-		(title "DDJ-FLX4 Modular Core v2.0 — 98x98mm 2-Layer Motherboard (ATmega32U4)")
+		(title "DDJ-FLX4 Modular Core v2.3 — 98x98mm 2-Layer Motherboard (ATmega32U4)")
 		(date "2026-11-21")
-		(rev "v2.0-Modular")
+		(rev "v2.3-Modular")
 		(company "Joao Paulo Ferreira - Club AI / UFSCar")
 		(comment 1 "MCU: Pro Micro USB-C (RAW=NC, RST=NC) | 2x CD74HC4067 Breakout Modules (2.54mm THT)")
-		(comment 2 "Zero-Crosstalk Analog: 16x 100nF Pre-Mux Filter Caps + R1=100R / C3=1nF")
+		(comment 2 "Low-Crosstalk Analog: 16x 100nF Pre-Mux Filter Caps + R1=100R / C3=DNP")
 		(comment 3 "Alps-Spec 2-Resistor Encoder RC (10k PU + 10k Series + 10nF) | Panel Controls via J7..J14")
 	)
 	(lib_symbols
@@ -14229,7 +14229,7 @@
 		(exclude_from_sim no)
 		(in_bom yes)
 		(on_board yes)
-		(dnp no)
+		(dnp yes)
 		(fields_autoplaced yes)
 		(uuid "cb98e43c-eb23-58a7-addd-10419346e71a")
 		(property "Reference" "C3"
@@ -14240,7 +14240,7 @@
 				)
 			)
 		)
-		(property "Value" "1nF_ADC_SHUNT"
+		(property "Value" "DNP_OPT_100pF"
 			(at 238.76 124.46 0)
 			(effects
 				(font

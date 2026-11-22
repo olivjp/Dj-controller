@@ -1,9 +1,10 @@
 // ============================================================================
-// Pioneer DDJ-FLX4 Modular Core v2.0 — Parametric OpenSCAD 3D Enclosure
-// Matched 1:1 to build_cad.py & 98x98mm 2-Layer Core PCB (ATmega32U4 Pro Micro)
+// Pioneer DDJ-FLX4 Modular Core v2.3 — Parametric OpenSCAD Reference Enclosure
+// Canonical STEP/STL generator (including 6 eared G82 switch carriers & jog
+// M3 nut-trap): cad/build_cad.py (FreeCAD 1.0 OpenCASCADE).
 // ============================================================================
-// External dims: 340.0 x 206.0 x 35.5 mm (45.5 mm w/ Jog Wheels)
-// Split at X=115 & X=225 -> 115x206, 110x206, 115x206 mm (fits any 220x220 bed!)
+// External dims: 340.0 x 206.0 x 45.5 mm (55.5 mm w/ Jog Wheels)
+// Split at X=115 & X=225 -> 115x206, 110x206, 115x206 mm (fits 220x220 bed)
 // ============================================================================
 
 $fn = 72;
@@ -18,21 +19,23 @@ top_plate_t = 3.5;
 seam_l = 115.0;
 seam_r = 225.0;
 
+// 10x Vertical M3 Pillars (rear Mixer uses brass F-F M3x30 standoffs coaxial with PCB H1/H2)
 m3_pillars = [
     [ 10.0,  10.0], [105.0,  10.0], [ 10.0, 196.0], [105.0, 196.0],
-    [122.0,  10.0], [218.0,  10.0], [122.0, 197.0], [218.0, 197.0],
+    [122.0,  10.0], [218.0,  10.0],
     [235.0,  10.0], [330.0,  10.0], [235.0, 196.0], [330.0, 196.0]
 ];
 
-pcb_x0 = (case_w - 98.0) / 2.0;   // 121.0
-pcb_y_rear = case_d - wall_t;     // 202.0
-usb_c_x = pcb_x0 + 48.895;        // 169.895
+pcb_x0 = (case_w - 98.0) / 2.0;        // 121.0
+pcb_y_rear = case_d - wall_t - 0.5;    // 201.5 (0.5 mm clearance to rear wall)
+usb_c_x = pcb_x0 + 48.895;             // 169.895
 pcb_holes = [
     [pcb_x0 +  5.08, pcb_y_rear -  5.08],
     [pcb_x0 + 92.71, pcb_y_rear -  5.08],
     [pcb_x0 +  5.08, pcb_y_rear - 92.71],
     [pcb_x0 + 92.71, pcb_y_rear - 92.71]
 ];
+h12_standoffs = [pcb_holes[0], pcb_holes[1]];
 
 jog_centers = [[48.0, 116.0], [272.0, 116.0]];
 
@@ -53,7 +56,7 @@ sw_centers = [
     [156.0, 160.0], [184.0, 160.0], [170.0, 138.0], [170.0, 118.0],
     [158.0,  86.0], [182.0,  86.0],
     [ 80.0, 186.0], [ 80.0, 166.0], [ 22.0,  18.0], [ 50.0,  18.0],
-    [244.0, 186.0], [244.0, 166.0], [242.0,  18.0], [270.0,  18.0]
+    [246.0, 186.0], [246.0, 166.0], [246.0,  18.0], [274.0,  18.0]
 ];
 
 module hex_nut_m3(h = 3.2, af = 5.8) {
@@ -65,20 +68,28 @@ module top_faceplate() {
         union() {
             cube([case_w, case_d, top_plate_t]);
             difference() {
-                translate([wall_t + 0.3, wall_t + 0.3, -2.5])
-                    cube([case_w - 2*(wall_t + 0.3), case_d - 2*(wall_t + 0.3), 2.5]);
-                translate([wall_t + 2.3, wall_t + 2.3, -2.8])
-                    cube([case_w - 2*(wall_t + 2.3), case_d - 2*(wall_t + 2.3), 3.0]);
+                union() {
+                    difference() {
+                        translate([wall_t + 0.5, wall_t + 0.5, -2.5])
+                            cube([case_w - 2*(wall_t + 0.5), case_d - 2*(wall_t + 0.5), 2.5]);
+                        translate([wall_t + 2.5, wall_t + 2.5, -2.8])
+                            cube([case_w - 2*(wall_t + 2.5), case_d - 2*(wall_t + 2.5), 3.0]);
+                    }
+                    for (sx = [seam_l - 3.5, seam_l + 0.5, seam_r - 3.5, seam_r + 0.5])
+                        translate([sx, wall_t + 1.0, -3.0]) cube([3.0, case_d - 2*wall_t - 2.0, 3.0]);
+                }
+                for (p = concat(m3_pillars, h12_standoffs))
+                    translate([p[0], p[1], -3.1]) cylinder(d = 11.0, h = 3.3);
             }
+            for (h = h12_standoffs)
+                translate([h[0], h[1], -1.4]) cylinder(d = 7.0, h = 1.4);
         }
-        for (p = m3_pillars) {
+        for (p = concat(m3_pillars, h12_standoffs)) {
             translate([p[0], p[1], -4.0]) cylinder(d = 3.4, h = top_plate_t + 6.0);
             translate([p[0], p[1], top_plate_t - 1.55]) cylinder(d1 = 3.4, d2 = 6.6, h = 1.6);
         }
-        for (jc = jog_centers) {
-            translate([jc[0], jc[1], top_plate_t - 1.0]) cylinder(d = 86.0, h = 1.5);
+        for (jc = jog_centers)
             translate([jc[0], jc[1], -2.0]) cylinder(d = 7.6, h = top_plate_t + 4.0);
-        }
         for (rp = rotary_pots)
             translate([rp[0], rp[1], -2.0]) cylinder(d = 7.6, h = top_plate_t + 4.0);
         for (vf = vert_faders) {
@@ -107,7 +118,7 @@ module bottom_chassis() {
                 translate([p[0], p[1], -bottom_h + floor_t]) cylinder(d = 10.0, h = bottom_h - floor_t);
             for (sx = [seam_l, seam_r])
                 translate([sx - 4.0, wall_t, -bottom_h + floor_t])
-                    cube([8.0, case_d - 2*wall_t, bottom_h - floor_t - 4.0]);
+                    cube([8.0, case_d - 2*wall_t, bottom_h - floor_t - 3.0]);
             for (ph = pcb_holes)
                 translate([ph[0], ph[1], -bottom_h + floor_t]) cylinder(d = 8.0, h = 6.0);
         }
@@ -115,38 +126,19 @@ module bottom_chassis() {
             translate([p[0], p[1], -bottom_h - 1.0]) cylinder(d = 3.4, h = bottom_h + 2.0);
             translate([p[0], p[1], -bottom_h - 0.1]) hex_nut_m3(3.2, 5.8);
         }
-        for (ph = pcb_holes) {
+        for (i = [0 : 3]) {
+            ph = pcb_holes[i];
             translate([ph[0], ph[1], -bottom_h - 1.0]) cylinder(d = 3.4, h = 11.0);
-            translate([ph[0], ph[1], -bottom_h - 0.1]) hex_nut_m3(2.8, 5.8);
+            translate([ph[0], ph[1], -bottom_h - 0.1]) hex_nut_m3(i < 2 ? 3.3 : 2.8, 5.8);
         }
         for (sx = [seam_l, seam_r]) {
             translate([sx - 6.0, 55.0, -26.0]) cube([12.0, 95.0, 18.0]);
-            for (by = [28.0, 178.0])
-                translate([sx - 8.0, by, -16.0]) rotate([0, 90, 0]) cylinder(d = 3.4, h = 16.0);
+            for (b = [[28.0, -8.0], [28.0, -34.0], [178.0, -8.0], [178.0, -20.0]])
+                translate([sx - 8.0, b[0], b[1]]) rotate([0, 90, 0]) cylinder(d = 3.4, h = 16.0);
         }
-        translate([usb_c_x - 8.0, case_d - wall_t - 2.0, -31.0]) cube([16.0, wall_t + 4.0, 16.0]);
-    }
-}
-
-module jog_wheel_platter() {
-    difference() {
-        union() {
-            cylinder(d1 = 84.0, d2 = 82.0, h = 8.5);
-            translate([0, 0, 8.5]) cylinder(d1 = 82.0, d2 = 76.0, h = 2.5);
-            translate([0, 0, -1.0]) cylinder(d = 15.0, h = 1.0);
-        }
-        difference() {
-            translate([0, 0, -1.5]) cylinder(d = 6.25, h = 10.0);
-            translate([1.75, -5.0, -2.0]) cube([4.0, 10.0, 12.0]);
-        }
-        translate([0, 0, 4.0]) rotate([0, 90, 0]) cylinder(d = 2.9, h = 44.0);
-        translate([0, 0, 9.0]) cylinder(d = 64.0, h = 3.0);
-        for (a = [0 : 22.5 : 337.5])
-            rotate([0, 0, a]) translate([42.0, 0, 3.5]) cylinder(d = 4.5, h = 7.5);
+        translate([usb_c_x - 8.0, case_d - wall_t - 2.0, -25.2]) cube([16.0, wall_t + 4.0, 16.0]);
     }
 }
 
 top_faceplate();
 bottom_chassis();
-for (jc = jog_centers)
-    translate([jc[0], jc[1], top_plate_t + 1.5]) jog_wheel_platter();

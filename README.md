@@ -1,75 +1,86 @@
-# Pioneer DDJ-FLX4 Modular Core v2.0 — Open-Source 2-Deck USB-MIDI DJ Controller
+# Pioneer DDJ-FLX4 Modular Core v2.3 — Open-Source 2-Deck USB-MIDI DJ Controller
 
-Hardware (**KiCad 9.0** `98 × 98 mm` 2-Layer Core PCB — **0 ERC / 0 DRC / 0 unconnected**, ~US\$ 2 na JLCPCB), chassi 3D imprimível em PLA (**FreeCAD 1.0** `.step`/`.stl` + **OpenSCAD** em 3 módulos `≤ 115 × 206 mm` que cabem em qualquer cama `220 × 220 mm`), e firmware USB-MIDI nativo (**ATmega32U4** com ISRs `PIND` atômicas, Pitch 14-bit e script JS para **Mixxx 2.4+**).
+Hardware (**KiCad 9.0** `98 × 98 mm` 2-Layer Core PCB — **0 ERC / 0 DRC / 0 unconnected**, ~US\$ 2 na JLCPCB), chassi 3D imprimível em PLA (**FreeCAD 1.0** `.step`/`.stl` em 3 módulos `≤ 115 × 206 mm` compatíveis com cama `220 × 220 mm`, **0 colisões P0** após 3 rodadas independentes de auditoria), e firmware USB-MIDI nativo (**ATmega32U4** com ISRs `PIND` atômicas, varredura Gray, Pitch 14-bit e script JS para **Mixxx 2.4+**).
 
 ---
 
-## 1. Visual Previews (v2.0)
+## 1. Visual Previews
 
 ### KiCad 9.0 3D Raytraced Core PCB (`98 × 98 mm`, 2-Layer FR4, Solid `B.Cu` GND Plane)
 ![PCB 3D Top View](renders/pcb_3d_top.png)
 ![PCB 3D Isometric View](renders/pcb_3d_iso.png)
 
-### FreeCAD 1.0 3D-Printable Enclosure Assembly (`340 × 206 × 48 mm`)
+### FreeCAD 1.0 3D-Printable Enclosure Assembly (`340 × 206 × 45.5 mm`)
 ![CAD 3D Isometric Assembly](renders/cad_isometric_render.png)
 
 ---
 
-## 2. Arquitetura Modular Core v2.0 (Correções pós-Auditoria Red-Team)
+## 2. Arquitetura Modular Core v2.3 (Consolidada após 3 Rodadas de Auditoria)
 
 1. **Placa-Mãe Central `98 × 98 mm`, 2 Camadas (`100% THT 2.54 mm`):**
-   - **Arduino Pro Micro USB-C (`J1`/`J2`):** `RAW` (`J2.1`) e `RST` (`J2.3`) desconectados (`NC`), sem back-feed no LDO e sem reset em curto. Conector USB-C alinhado rente à parede traseira (`Y = 0`).
-   - **2× Módulos Breakout Azuis `CD74HC4067` (`J3/J4` = `U1` Analógico com `C15` no topo; `J5/J6` = `U2` Pads girado `180°` com `C0` no topo):** casados 1:1 com o módulo azul físico (`1×16` `C15..C0` + `1×8` `SIG, S3, S2, S1, S0, EN, VCC, GND` alinhado a `C11..C4`, espaçamento `15.24 mm`).
-   - **Front-End Analógico Zero-Crosstalk:** `16×` capacitores `100 nF` (`C10..C25`) posicionados **ANTES** do multiplexador `U1` (um por canal `POT_CH0..15`), combinados com `R1 = 100 Ω` e `C3 = 1 nF` pós-mux ($\tau = 2.67\,\mu\text{s} \Rightarrow 0.00\%$ de crosstalk em $145\,\mu\text{s}$).
-   - **Debounce de Encoders Padrão Alps (`ENC1`/`ENC2`):** `10 kΩ` pull-up (`R3..R6`) + `10 kΩ` resistor série limitador de corrente (`R12..R15`) + `10 nF` (`C4..C7`), protegendo os contatos contra *pitting*.
-   - **Plano de Terra Sólido (`B.Cu`):** Copper Zone `GND` preenchida nativamente com thermal reliefs + espinha dorsal de retorno (`0` violações DRC, `0` itens desconectados).
-   - **Conectores Perimetrais de Painel (`J7..J14`):** chicotes separados para Faders Mixer (`J9`), Pots Deck B (`J8`), Pots Deck A (`J7`), Pads Deck A (`J10`), Pads Deck B (`J11`), Matriz 4×4 (`J12`), Encoders EC11 (`J13`) e Alimentação Auxiliar (`J14`).
-2. **Controles de Painel Montados na Faceplate 3D (`3.5 mm` PLA) + Suportes Traseiros `G82`:**
-   - `11×` potenciômetros rotativos `WH148 B10K` (passo `18.5 mm` > corpo `16 mm`, furos `Ø 7.6 mm` M7), `5×` slide faders **`D103 = D10K×2` (`75 mm` corpo / `60 mm` curso**, rasgos `4.6 × 64.0 mm` + furos `M2.5` a `71 mm`), `2×` encoders `EC11` (`Ø 7.6 mm` M7) e `30×` switches táteis `G82 12×12×5 mm` travados pelas **8 placas traseiras `ddj_flx4_switch_carriers.stl`** (em torres de `5.2 mm` sob a faceplate) com keycaps `12.6 × 12.6 mm` em janelas `13.2 × 13.2 mm`.
-3. **Chassi 3D Modular (`340 × 206 × 45.5 mm`, base `42 mm` / vão `31.4 mm` acima da PCB) Compatível com Cama `220 × 220 mm`:**
-   - Seccionado em `X = 115` e `X = 225 mm` $\rightarrow$ **Deck A (`115 × 206 mm`)**, **Mixer Central (`110 × 206 mm`)**, **Deck B (`115 × 206 mm`)**.
-   - **12 pilares verticais M3** afastados `10 mm` das emendas com **bolsos sextavados para porcas M3 embutidas (*captive nuts* `5.8 mm` AF)** — zero rosca direta no PLA — além de flanges horizontais M3 travando as 3 seções.
-   - **Jog Wheels (`Ø 84 mm`):** sem colisão com a faceplate, furo `Ø 6.25 mm` com chanfro D-flat + furo radial para parafuso travante `M3` (*set-screw*).
-   - **Cupom de Calibração (`ddj_flx4_tolerance_test.stl`, `60 × 45 mm`, ~`8 g` PLA):** imprima primeiro (~15 min) para validar todas as folgas na sua impressora.
-4. **Firmware USB-MIDI v2.0 + Mixxx 2.4+ (`firmware/`):**
-   - Leitura atômica de `PIND` nas ISRs (`62.5 ns`, zero skew A/B).
-   - Filtro EMA contínuo desacoplado da histerese de saída (alcança `0` e `127` limpos sem travamento).
-   - **Pitch Faders 14-bit (`0xE0` / `0xE1` Pitch Bend):** resolução de `0.020 BPM` em `±8% @ 128 BPM` (8× mais fino que 7-bit CC).
-   - Mapeamento completo para **Mixxx 2.4+** (`DDJ_FLX4_Arduino_MIDI.midi.xml` + `DDJ_FLX4_Arduino_MIDI.scripts.js` com suporte a Jog Wheel relativo e modo Scratch ao segurar `ENC1_SW`/`ENC2_SW`).
+   - **Arduino Pro Micro USB-C (`J1`/`J2`):** `RAW` (`J2.1`) e `RST` (`J2.3`) desconectados (`NC`).
+   - **2× Módulos Breakout Azuis `CD74HC4067` (`J3/J4` = `U1` Analógico com `C15` no topo; `J5/J6` = `U2` Pads girado `180°` com `C0` no topo):** casados 1:1 com o módulo azul físico (`1×16` `C15..C0` + `1×8` `SIG, S3, S2, S1, S0, EN, VCC, GND` alinhado a `C11..C4`, passo `15.24 mm`). *Fazer teste de continuidade A1 antes de subir o Gerber.*
+   - **Front-End Analógico Baixo-Crosstalk:** `16×` capacitores `100 nF` (`C10..C25`) **ANTES** do multiplexador `U1` + `R1 = 100 Ω` com **`C3 = DNP`** (não montar `C3`, mantendo o resíduo de carga em `0.22–0.37 LSB` em vez de `3.6–6.2 LSB`).
+   - **Debounce de Encoders Padrão Alps (`ENC1`/`ENC2`):** `10 kΩ` pull-up (`R3..R6`) + `10 kΩ` série anti-pitting (`R12..R15`) + `10 nF` (`C4..C7`), compatível com os limiares LVTTL reais do ATmega32U4 ($V_{IL} \le 0.90\text{ V}$, $V_{IH} \ge 1.90\text{ V}$).
+   - **Plano de Terra Sólido (`B.Cu`):** `0` violações DRC, `0` itens desconectados (`hardware/gerbers/ddj_flx4_core_v2_jlcpcb.zip`).
+2. **Chassi 3D Modular v2.3 (`340 × 206 × 45.5 mm`, `BOTTOM_H = 42 mm`) — 0 Colisões P0:**
+   - **PCB recuada `0.5 mm` da parede traseira (`PCB_Y_REAR = 201.5 mm`):** furos traseiros `H1/H2` (`126.08, 196.42` / `213.71, 196.42`) usam **`M3×12` cabeça cilíndrica por baixo** + **espaçador de latão F-F `M3×30` (`5.5 AF`)** + boss `Ø 7 × 1.4 mm` sob a faceplate (`M3×10` escareado por cima). Tirar a tampa não solta a PCB e mantém `+0.71..+1.21 mm` de folga até `RV1/RV6`.
+   - **Lábio (`WALL_T + 0.5 mm`) e nervuras de emenda com alívio `Ø 11 mm`** nos 10 pilares + `H1/H2`.
+   - **Recorte USB-C alinhado em `Z = -25.2 .. -9.2 mm`** (acomoda overmold até `8.5 mm`).
+   - **6 Carriers rígidos com orelhas (`ddj_flx4_switch_carriers.stl`):** `deckA_frente`, `deckB_frente`, `mixer_top`, `mixer_cue`, `loopsync_A`, `loopsync_B`, base `±8.2 mm` (parede sólida por fora dos rasgos de pinos `±7.15 mm`), todos os 30 switches dentro da envoltória convexa de apoio (`margem ≥ +1.0 mm`, alcance `≤ 14.9 mm`), empacotamento automático sem sobreposição, `CARRIER_STANDOFF_H = 4.5 mm` (ajustar para `5.6 mm` se o atuador `G82` medir `≥ Ø 7.2 mm`).
+   - **Jog Wheels (`Ø 84 mm`) + Faceplate cheia (`3.5 mm`, sem rebaixo `Ø 86`):** trava de porca `M3` em `r = 6.8..9.2 mm` (livre do rebaixo sob o cubo `Ø 12.5 × 4.0 mm`), canal de acesso `Ø 3.4 mm` para **grub `M3×8`**.
+   - **Emendas:** blocos até `Z = -3.0 mm` apoiando as nervuras da faceplate + **4× `M3×12` horizontais por emenda** (`Y = 28` em `Z = -8, -34`; `Y = 178` em `Z = -8, -20` — livres da PCB, de `J9/J10` e de `loopsync_B`).
+3. **Firmware USB-MIDI v2.3 + Mixxx 2.4+ (`firmware/`):**
+   - Varredura do mux em **código Gray cíclico** (`{0,1,3,2,6,7,5,4,12,13,15,14,10,11,9,8}` — sempre 1 bit por troca entre `PD4/PC6/PD7/PE6`).
+   - **`#define HAS_RV16 0`:** pula *apenas* o bloco analógico de `U1` no canal `15` (mantém `SW16` / Pad 8 Deck B e a sequência Gray intactos; nunca usar jumper em `POT_CH15`).
+   - **Matriz 4×4 em Open-Drain:** linhas inativas em `INPUT` (Hi-Z), eliminando risco de curto `> 40 mA` caso um diodo `1N4148` fique invertido.
+   - **Histerese aplicada sobre o `filtered` cru antes da LUT**, linearização nos **5 faders `D103`** (`CH10..CH14`), zona morta central no Pitch 14-bit (`0xE0`/`0xE1`), `beatloop_toggle` e `SMART_CFX`/`BEAT_FX` nos 2 decks no Mixxx.
 
 ---
 
-## 3. Bill of Materials (BOM v2.0)
+## 3. Checklist de Bancada (Antes de Fabricar / Imprimir)
 
-### Na Placa-Mãe Central (`98 × 98 mm` — Upload `hardware/gerbers/ddj_flx4_core_v2_jlcpcb.zip` na JLCPCB)
+| # | Medição física | Objetivo |
+|---|---|---|
+| **A1** | Módulo azul `CD74HC4067`: encaixe a seco (componentes p/ cima, `1×16` à esquerda, USB-C longe de você $\rightarrow$ canto superior = `C15` alinhado a `SIG`) + continuidade `GND↔pino 12`, `C0↔9`, `C15↔16` e passo `15.24 mm` | **P0** — Libera `ddj_flx4_core_v2_jlcpcb.zip` na JLCPCB |
+| **A2** | Diâmetro do atuador do switch `G82` | `CARRIER_STANDOFF_H = 4.5 mm` (`< Ø 7.2`) ou `5.6 mm` (`≥ Ø 7.2`) |
+| **A3** | Altura do `WH148` + fio soldado abaixo da faceplate + diâmetro real do corpo (`r ≤ 8.5 mm`) | Folga em Z = `0.8 mm` (se `> 16 mm`, dobrar terminais ou usar `BOTTOM_H = 44`) |
+| **A4** | `EC11`: comprimento da bucha M7, comprimento do eixo (`15` vs `20 mm`) e trecho D-flat | Confirmar `JOG_Z` e cota `Z = 4.5 mm` do grub `M3×8` |
+| **A5** | Medir fader `D103` no multímetro a `0 / 25 / 50 / 75 / 100%` | Ajustar `LOG_INV_LUT` (ou desligar `LINEARIZE_D103_LOG_FADERS` se linear) |
+
+---
+
+## 4. Bill of Materials (BOM v2.3)
+
+### Na Placa-Mãe Central (`98 × 98 mm` — `hardware/gerbers/ddj_flx4_core_v2_jlcpcb.zip`)
 | Designator | Qty | Componente | Observação |
 | :--- | :---: | :--- | :--- |
 | `J1`, `J2` | 1 | **Arduino Pro Micro USB-C (`ATmega32U4 5V 16MHz`)** + 2× barras fêmea `1×12` | Soquetado rente à borda traseira |
-| `J3/J4`, `J5/J6` | 2 | **Módulo Breakout `CD74HC4067` (16-ch, 2.54mm THT)** + barras fêmea `1×16` & `1×8` | `U2` montado girado `180°` (ver serigrafia) |
+| `J3/J4`, `J5/J6` | 2 | **Módulo Breakout `CD74HC4067` (16-ch, 2.54mm THT)** + barras fêmea `1×16` & `1×8` | `U2` montado girado `180°` |
 | `J7..J14` | 8 | Barras de pinos `2.54 mm` (`3× 1×8`, `2× 1×10`, `2× 1×6`, `1× 1×4`) | Chicotes p/ controles de painel |
 | `C10..C25`, `C1,C2,C8` | 19 | Capacitores cerâmicos **`100 nF (104)`** THT (`P5.0mm`) | 16× filtro pré-mux + 3× desacoplamento |
-| `C3` | 1 | Capacitor cerâmico **`1 nF (102)`** THT (`P5.0mm`) | Anti-aliasing pós-mux (`0%` crosstalk) |
+| `C3` | 0 | **`DNP` (Não montar)** | Deixar vazio p/ evitar compartilhamento de carga |
 | `C4..C7` | 4 | Capacitores cerâmicos **`10 nF (103)`** THT (`P5.0mm`) | Debounce EC11 |
 | `R2..R10`, `R12..R15` | 13 | Resistores **`10 kΩ`** 1/4W axial (`P7.62mm`) | Pull-ups + 4× série anti-pitting EC11 |
 | `R1`, `R11` | 2 | `1× 100 Ω` (`R1` ADC) + `1× 330 Ω` (`R11` LED) | 1/4W axial |
-| `D17` | 1 | LED `5 mm` Verde (Power) | Indicador de alimentação |
+| `D17` | 1 | LED `5 mm` Verde (Power) | Opcional: puxar com 2 fios p/ furo da faceplate |
 
-### No Painel 3D (Off-Board, ligados via chicote `24–26 AWG` a `J7..J14`)
+### No Painel 3D (Off-Board) e Ferragens M3 (v2.3)
 | Designator | Qty | Componente |
 | :--- | :---: | :--- |
-| `RV1..RV10`, `RV16` | 11 | Potenciômetros rotativos **`WH148 B10K`** (`10 kΩ` linear) + knobs `6 mm` |
-| `RV11..RV15` | 5 | Faders deslizantes **`D103 = D10K×2` (`75 mm` corpo / `60 mm` curso)** + tampas de fader + `10×` parafusos `M2.5` *(usar 1 canal; linearização LUT ativa no firmware)* |
+| `RV1..RV10` (+ `RV16` opc.) | 10–11 | Potenciômetros rotativos **`WH148 B10K`** (`10 kΩ` linear) + knobs `6 mm` (`HAS_RV16 = 0` se usar 10) |
+| `RV11..RV15` | 5 | Faders deslizantes **`D103 = D10K×2` (`75 mm` / `60 mm` curso)** + tampas + `10×` parafusos `M2.5` |
 | `SW1..SW30` | 30 | Switches táteis **`G82 12×12×5 mm`** |
-| `ENC1`, `ENC2` | 2 | Encoders rotativos **`EC11`** com push-switch |
-| `D1..D16` | 16 | Diodos **`1N4148`** (soldados nos terminais dos 14 botões + 2 switches EC11 da matriz 4×4) |
-| Mecânica | 1 kit | `12× M3×45 mm` escareados (tampa-base) + `24× M3×8 mm` (suportes dos 30 switches `G82`) + `4× M3×12 mm` (PCB) + `4× M3×16 mm` (emendas) + `2× M3×8 mm` (set-screw jogs) + `20× porcas M3` + `6× pezinhos de silicone` |
+| `ENC1`, `ENC2` | 2 | Encoders rotativos **`EC11`** (preferir sem detent) com push-switch |
+| `D1..D16` | 16 | Diodos **`1N4148`** (matriz 4×4 anti-ghosting) |
+| **Ferragens M3 (v2.3)** | 1 kit | `10× M3×45` escareados (pilares) + `2× M3×12` cabeça cilíndrica + `2×` espaçador latão F-F `M3×30` (`5.5 AF`) + `2× M3×10` escareados (H1/H2) + `2× M3×10` (H3/H4 PCB) + `40× M3×6` (6 carriers) + `2×` grub `M3×8` + `2×` porcas `M3` (jogs) + `8× M3×12` + `8×` porcas + `16×` arruelas (emendas) + `12×` porcas `M3` (pilares/H3/H4) + `6×` pezinhos de silicone |
 
 ---
 
-## 4. Ordem de Impressão 3D em PLA (~860 g total com suportes/brim)
+## 5. Ordem de Impressão 3D em PLA
 
-1. **Primeiro (~8 g, 15 min):** Imprima `cad/stl/ddj_flx4_tolerance_test.stl` e teste fisicamente seu `WH148`, `D103`, `EC11`, porca `M3` e 1 keycap.
-2. **Base (`42 mm` altura — 3 módulos, todos cabem em `220 × 220 mm`):** `ddj_flx4_bottom_left_deckA.stl` (`115×206`), `ddj_flx4_bottom_center_mixer.stl` (`110×206`), `ddj_flx4_bottom_right_deckB.stl` (`115×206`).
-3. **Faceplate (3 módulos, imprimir de cabeça para baixo na mesa para acabamento perfeito):** `ddj_flx4_top_left_deckA.stl`, `ddj_flx4_top_center_mixer.stl`, `ddj_flx4_top_right_deckB.stl`.
-4. **Suportes Traseiros dos 30 Switches `G82` (1 lote único):** `cad/stl/ddj_flx4_switch_carriers.stl` (8 plaquinhas de apoio com rasgos para os terminais — aparafusar com `M3×8 mm` nas torres de `5.2 mm` atrás da faceplate).
-5. **Controles:** `2× ddj_flx4_jog_wheel.stl` (`0.16 mm` camada, `20%` gyroid) + `30× ddj_flx4_pad_keycap.stl`.
+1. **Primeiro (~8 g, 15 min):** `cad/stl/ddj_flx4_tolerance_test.stl` (validar folgas da impressora).
+2. **Base (`42 mm`, 3 módulos `≤ 115 × 206 mm`):** `ddj_flx4_bottom_left_deckA.stl`, `ddj_flx4_bottom_center_mixer.stl`, `ddj_flx4_bottom_right_deckB.stl`.
+3. **Faceplate (3 módulos, imprimir de cabeça para baixo):** `ddj_flx4_top_left_deckA.stl`, `ddj_flx4_top_center_mixer.stl`, `ddj_flx4_top_right_deckB.stl`.
+4. **Carriers dos 30 Switches `G82` (6 placas com orelhas em 1 mesa):** `cad/stl/ddj_flx4_switch_carriers.stl`.
+5. **Controles:** `2× ddj_flx4_jog_wheel.stl` + `30× ddj_flx4_pad_keycap.stl`.

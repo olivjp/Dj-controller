@@ -87,22 +87,22 @@ def shade_triangles(tris: np.ndarray, base_rgb: tuple[float, float, float], ligh
     return colors
 
 def render_isometric():
-    top_tris = subdivide_large_triangles(load_binary_stl(os.path.join(CAD_STL_DIR, "ddj_flx4_top_faceplate.stl")), max_edge=14.0, passes=4)
-    bot_tris = subdivide_large_triangles(load_binary_stl(os.path.join(CAD_STL_DIR, "ddj_flx4_bottom_chassis.stl")), max_edge=16.0, passes=3)
+    top_tris = subdivide_large_triangles(load_binary_stl(os.path.join(CAD_STL_DIR, "ddj_flx4_top_faceplate.stl")), max_edge=24.0, passes=2)
+    bot_tris = subdivide_large_triangles(load_binary_stl(os.path.join(CAD_STL_DIR, "ddj_flx4_bottom_chassis.stl")), max_edge=24.0, passes=2)
     jog_tris = load_binary_stl(os.path.join(CAD_STL_DIR, "ddj_flx4_jog_wheel.stl"))
 
     bot_shifted = bot_tris.copy()
     bot_shifted[:, :, 2] -= 10.0
 
     jog_a = jog_tris.copy()
-    jog_a[:, :, 0] += 55.5
-    jog_a[:, :, 1] += (220.0 - 94.5)
-    jog_a[:, :, 2] += 6.0
+    jog_a[:, :, 0] += 48.0
+    jog_a[:, :, 1] += 116.0
+    jog_a[:, :, 2] += 5.0
 
     jog_b = jog_tris.copy()
-    jog_b[:, :, 0] += 275.5
-    jog_b[:, :, 1] += (220.0 - 94.5)
-    jog_b[:, :, 2] += 6.0
+    jog_b[:, :, 0] += 272.0
+    jog_b[:, :, 1] += 116.0
+    jog_b[:, :, 2] += 5.0
 
     parts = [
         (bot_shifted, (0.20, 0.25, 0.34)),
@@ -121,28 +121,28 @@ def render_isometric():
     poly1 = Poly3DCollection(all_tris, facecolors=all_cols, edgecolors="none", zsort="average")
     ax1.add_collection3d(poly1)
     ax1.set_xlim(-15, 355)
-    ax1.set_ylim(-15, 235)
-    ax1.set_zlim(-40, 28)
-    ax1.set_box_aspect((370, 250, 68))
+    ax1.set_ylim(-15, 221)
+    ax1.set_zlim(-55, 22)
+    ax1.set_box_aspect((370, 236, 77))
     ax1.view_init(elev=36, azim=-60)
     ax1.set_axis_off()
-    ax1.set_title("Isometric 3D Printable Assembly (Deck A + Mixer + Deck B)", color="#58a6ff", fontsize=12, fontweight="bold", pad=6)
+    ax1.set_title("Isometric 3D Printable Assembly v2.3 (Deck A + Mixer + Deck B)", color="#58a6ff", fontsize=12, fontweight="bold", pad=6)
 
     # Right Subplot: Top-Down Orthographic View
     ax2 = fig.add_subplot(122, projection="3d", facecolor="#0d1117")
     poly2 = Poly3DCollection(all_tris, facecolors=all_cols, edgecolors="none", zsort="average")
     ax2.add_collection3d(poly2)
     ax2.set_xlim(-10, 350)
-    ax2.set_ylim(-10, 230)
-    ax2.set_zlim(-40, 28)
-    ax2.set_box_aspect((360, 240, 68))
+    ax2.set_ylim(-10, 216)
+    ax2.set_zlim(-55, 22)
+    ax2.set_box_aspect((360, 226, 77))
     ax2.view_init(elev=88, azim=-90)
     ax2.set_axis_off()
-    ax2.set_title("Top Orthographic Control Deck View (350 x 230 mm)", color="#ff7b72", fontsize=12, fontweight="bold", pad=6)
+    ax2.set_title("Top Orthographic Control Deck View (340 x 206 x 45.5 mm)", color="#ff7b72", fontsize=12, fontweight="bold", pad=6)
 
     fig.suptitle(
-        "Pioneer DDJ-FLX4 Inspired DJ Console — FreeCAD 1.0 STEP & 3D-Printable STL CAD Suite\n"
-        "Cyan: Deck A 84mm Jog Wheel | Red: Deck B 84mm Jog Wheel | 30x 12x12mm Pads/Transport | 11x Rotary Pots | 5x Slide Faders",
+        "Pioneer DDJ-FLX4 Modular Core v2.3 — FreeCAD 1.0 STEP & 3D-Printable STL CAD Suite\n"
+        "Cyan: Deck A 84mm Jog Wheel | Red: Deck B 84mm Jog Wheel | 30x G82 Pads/Transport | 10-11x WH148 Pots | 5x D103 Faders",
         color="#e6edf3",
         fontsize=13,
         fontweight="bold",

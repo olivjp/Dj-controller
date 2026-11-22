@@ -1,7 +1,7 @@
 "Refs","Value","Footprint","Qty","DNP"
 "C1","100nF_U1_DEC","Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm","1",""
 "C2","100nF_U2_DEC","Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm","1",""
-"C3","1nF_ADC_SHUNT","Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm","1",""
+"C3","DNP_OPT_100pF","Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm","1","DNP"
 "C4","10nF_ENC1A","Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm","1",""
 "C5","10nF_ENC1B","Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm","1",""
 "C6","10nF_ENC2A","Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm","1",""

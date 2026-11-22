@@ -104,7 +104,7 @@ class SchematicBuilder:
         px, py, _rot, _name, _etype = PIN_DB[lib_id][str(pnum)]
         return round(sx + px, 2), round(sy - py, 2)
 
-    def add_symbol(self, lib_id: str, ref: str, val: str, footprint: str, sx: float, sy: float, in_bom="yes", on_board="yes"):
+    def add_symbol(self, lib_id: str, ref: str, val: str, footprint: str, sx: float, sy: float, in_bom="yes", on_board="yes", dnp="no"):
         suuid = det_uuid(f"sym-{ref}")
         pins = PIN_DB[lib_id]
         pin_lines = []
@@ -120,7 +120,7 @@ class SchematicBuilder:
 \t\t(exclude_from_sim no)
 \t\t(in_bom {in_bom})
 \t\t(on_board {on_board})
-\t\t(dnp no)
+\t\t(dnp {dnp})
 \t\t(fields_autoplaced yes)
 \t\t(uuid "{suuid}")
 \t\t(property "Reference" "{ref}"
@@ -388,7 +388,7 @@ def build():
     capacitors = [
         ("C1", "100nF_U1_DEC",   "+5V",      "GND"),
         ("C2", "100nF_U2_DEC",   "+5V",      "GND"),
-        ("C3", "1nF_ADC_SHUNT",  "MUX1_ADC", "GND"),   # FIXED: 1nF (tau=2.67us -> 0.00% crosstalk!)
+        ("C3", "DNP_OPT_100pF",  "MUX1_ADC", "GND"),   # v2.3: DNP (avoids 3.6-6.2 LSB charge-sharing!)
         ("C4", "10nF_ENC1A",     "ENC1_A",   "GND"),
         ("C5", "10nF_ENC1B",     "ENC1_B",   "GND"),
         ("C6", "10nF_ENC2A",     "ENC2_A",   "GND"),
@@ -402,7 +402,7 @@ def build():
     for idx, (ref, val, n1, n2) in enumerate(capacitors):
         cx = 203.20 + (idx % 12) * 17.78
         cy = 127.00 + (idx // 12) * 22.86
-        sb.add_symbol(c_lib, ref, val, c_fp, cx, cy)
+        sb.add_symbol(c_lib, ref, val, c_fp, cx, cy, dnp="yes" if ref == "C3" else "no")
         sb.connect_pin_to_net(c_lib, cx, cy, "1", n1, 0, -3.81)
         sb.connect_pin_to_net(c_lib, cx, cy, "2", n2, 0, 3.81)
 
@@ -496,12 +496,12 @@ def build():
 \t(uuid "{ROOT_UUID}")
 \t(paper "A2")
 \t(title_block
-\t\t(title "DDJ-FLX4 Modular Core v2.0 — 98x98mm 2-Layer Motherboard (ATmega32U4)")
+\t\t(title "DDJ-FLX4 Modular Core v2.3 — 98x98mm 2-Layer Motherboard (ATmega32U4)")
 \t\t(date "2026-11-21")
-\t\t(rev "v2.0-Modular")
+\t\t(rev "v2.3-Modular")
 \t\t(company "Joao Paulo Ferreira - Club AI / UFSCar")
 \t\t(comment 1 "MCU: Pro Micro USB-C (RAW=NC, RST=NC) | 2x CD74HC4067 Breakout Modules (2.54mm THT)")
-\t\t(comment 2 "Zero-Crosstalk Analog: 16x 100nF Pre-Mux Filter Caps + R1=100R / C3=1nF")
+\t\t(comment 2 "Low-Crosstalk Analog: 16x 100nF Pre-Mux Filter Caps + R1=100R / C3=DNP")
 \t\t(comment 3 "Alps-Spec 2-Resistor Encoder RC (10k PU + 10k Series + 10nF) | Panel Controls via J7..J14")
 \t)
 \t(lib_symbols
