@@ -12,7 +12,7 @@ case_w      = 340.0;
 case_d      = 206.0;
 wall_t      = 4.0;
 floor_t     = 3.0;
-bottom_h    = 32.0;
+bottom_h    = 42.0;
 top_plate_t = 3.5;
 
 seam_l = 115.0;
@@ -124,7 +124,7 @@ module bottom_chassis() {
             for (by = [28.0, 178.0])
                 translate([sx - 8.0, by, -16.0]) rotate([0, 90, 0]) cylinder(d = 3.4, h = 16.0);
         }
-        translate([usb_c_x - 8.0, case_d - wall_t - 2.0, -21.0]) cube([16.0, wall_t + 4.0, 16.0]);
+        translate([usb_c_x - 8.0, case_d - wall_t - 2.0, -31.0]) cube([16.0, wall_t + 4.0, 16.0]);
     }
 }
 

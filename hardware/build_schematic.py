@@ -289,30 +289,32 @@ def build():
     c8 = "Connector_Generic:Conn_01x08"
     fp8 = "Connector_PinHeader_2.54mm:PinHeader_1x08_P2.54mm_Vertical"
 
-    # U1 Breakout (Analog Pots/Faders)
+    # U1 Breakout (Analog Pots/Faders) — Matched 1:1 to User's Physical Blue CD74HC4067 Photo!
+    # Left 1x16 top->bottom: C15..C0 (pin 1 = C15, pin 16 = C0)
+    # Right 1x8 top->bottom (aligned with C11..C4): 1=SIG, 2=S3, 3=S2, 4=S1, 5=S0, 6=EN(GND), 7=VCC(+5V), 8=GND
     u1ch_x, u1ch_y = 165.10, 60.96
     u1ct_x, u1ct_y = 198.12, 60.96
     sb.add_symbol(c16, "J3", "U1_CD74HC4067_CH_1x16", fp16, u1ch_x, u1ch_y)
     sb.add_symbol(c8,  "J4", "U1_CD74HC4067_CTRL_1x8", fp8, u1ct_x, u1ct_y)
     for i in range(16):
-        sb.connect_pin_to_net(c16, u1ch_x, u1ch_y, str(i + 1), f"POT_CH{i}", -7.62, 0)
+        sb.connect_pin_to_net(c16, u1ch_x, u1ch_y, str(i + 1), f"POT_CH{15 - i}", -7.62, 0)
     u1_ctrl = {
-        "1": "GND", "2": "+5V", "3": "GND", "4": "MUX_S0",
-        "5": "MUX_S1", "6": "MUX_S2", "7": "MUX_S3", "8": "MUX1_COM",
+        "1": "MUX1_COM", "2": "MUX_S3", "3": "MUX_S2", "4": "MUX_S1",
+        "5": "MUX_S0",   "6": "GND",    "7": "+5V",    "8": "GND",
     }
     for pnum, net in u1_ctrl.items():
         sb.connect_pin_to_net(c8, u1ct_x, u1ct_y, pnum, net, -7.62, 0)
 
-    # U2 Breakout (16 Performance Pads)
+    # U2 Breakout (16 Performance Pads) — Same physical blue module (mounted rotated 180 deg on PCB!)
     u2ch_x, u2ch_y = 236.22, 60.96
     u2ct_x, u2ct_y = 269.24, 60.96
     sb.add_symbol(c16, "J5", "U2_CD74HC4067_CH_1x16", fp16, u2ch_x, u2ch_y)
     sb.add_symbol(c8,  "J6", "U2_CD74HC4067_CTRL_1x8", fp8, u2ct_x, u2ct_y)
     for i in range(16):
-        sb.connect_pin_to_net(c16, u2ch_x, u2ch_y, str(i + 1), f"PAD_CH{i}", -7.62, 0)
+        sb.connect_pin_to_net(c16, u2ch_x, u2ch_y, str(i + 1), f"PAD_CH{15 - i}", -7.62, 0)
     u2_ctrl = {
-        "1": "GND", "2": "+5V", "3": "GND", "4": "MUX_S0",
-        "5": "MUX_S1", "6": "MUX_S2", "7": "MUX_S3", "8": "MUX2_COM",
+        "1": "MUX2_COM", "2": "MUX_S3", "3": "MUX_S2", "4": "MUX_S1",
+        "5": "MUX_S0",   "6": "GND",    "7": "+5V",    "8": "GND",
     }
     for pnum, net in u2_ctrl.items():
         sb.connect_pin_to_net(c8, u2ct_x, u2ct_y, pnum, net, -7.62, 0)

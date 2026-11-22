@@ -32,7 +32,7 @@ CASE_W      = 340.0
 CASE_D      = 206.0    # <= 210 mm -> fits 220x220 mm FDM beds with 5 mm brim!
 WALL_T      = 4.0
 FLOOR_T     = 3.0
-BOTTOM_H    = 32.0     # Z = -32.0 .. 0.0 (21.4 mm headroom above 98x98 Core PCB)
+BOTTOM_H    = 42.0     # Z = -42.0 .. 0.0 (31.4 mm headroom above 98x98 Core PCB — zero WH148 collision!)
 TOP_PLATE_T = 3.5      # Z =   0.0 .. +3.5
 
 SEAM_L = 115.0
@@ -101,6 +101,21 @@ SW_CENTERS = [
     (244.0, 186.0), (244.0, 166.0), (242.0, 18.0), (270.0, 18.0),
 ]
 
+# 7x Switch Backing Carrier Groups (holds all 30 G82 12x12x5mm tactile switches at exact Z=-5.2mm!)
+# Each group: (name, x_min, y_min, x_max, y_max, screw_pts, switch_indices)
+SWITCH_CARRIERS = [
+    ("pads_deckA",   11.0,  29.0,  99.0,  71.0, [(14.5, 32.5), (95.5, 32.5), (14.5, 67.5), (95.5, 67.5)], list(range(0, 8))),
+    ("pads_deckB",  231.0,  29.0, 319.0,  71.0, [(234.5, 32.5), (315.5, 32.5), (234.5, 67.5), (315.5, 67.5)], list(range(8, 16))),
+    ("mixer_top",   145.0, 108.0, 195.0, 170.0, [(149.0, 112.0), (191.0, 112.0), (149.0, 167.0), (191.0, 167.0)], [16, 17, 18, 19]),
+    ("mixer_cue",   147.0,  75.0, 193.0,  97.0, [(150.5, 78.5), (189.5, 93.5)], [20, 21]),
+    ("loopsync_A",   69.0, 155.0,  91.0, 197.0, [(72.5, 158.5), (87.5, 193.5)], [22, 23]),
+    ("transp_A",     11.0,   7.5,  61.0,  28.5, [(14.5, 25.0), (57.5, 11.0)],   [24, 25]),
+    ("loopsync_B",  233.0, 155.0, 255.0, 197.0, [(236.5, 158.5), (251.5, 193.5)], [26, 27]),
+    ("transp_B",    231.0,   7.5, 281.0,  28.5, [(234.5, 25.0), (277.5, 11.0)], [28, 29]),
+]
+CARRIER_STANDOFF_H = 5.2   # Exact Z-height under faceplate so G82 (5.0mm) sits 0.2mm below rest keycap!
+CARRIER_PLATE_T    = 2.5
+
 def make_hex_prism(af_mm: float, height: float, center: FreeCAD.Vector) -> Part.Shape:
     r_corner = (af_mm / 2.0) / math.cos(math.radians(30.0))
     pts = [
@@ -132,9 +147,18 @@ def make_top_faceplate() -> Part.Shape:
     ribs = [lip]
     for sx in (SEAM_L - 3.5, SEAM_L + 0.5, SEAM_R - 3.5, SEAM_R + 0.5):
         ribs.append(Part.makeBox(3.0, CASE_D - 2*WALL_T - 2.0, 3.0, FreeCAD.Vector(sx, WALL_T + 1.0, -3.0)))
+    # Add M3 mounting bosses (H=5.2mm) under faceplate for the 8 Switch Backing Carrier Plates!
+    for _cname, _x0, _y0, _x1, _y1, spts, _sws in SWITCH_CARRIERS:
+        for bx, by in spts:
+            ribs.append(Part.makeCylinder(3.2, CARRIER_STANDOFF_H, FreeCAD.Vector(bx, by, -CARRIER_STANDOFF_H)))
     plate = plate.fuse(ribs)
 
     cutouts = []
+
+    # Pilot bores (d=2.8mm, depth=4.5mm) in switch carrier bosses for M3x8mm screws
+    for _cname, _x0, _y0, _x1, _y1, spts, _sws in SWITCH_CARRIERS:
+        for bx, by in spts:
+            cutouts.append(Part.makeCylinder(1.4, CARRIER_STANDOFF_H - 0.5, FreeCAD.Vector(bx, by, -CARRIER_STANDOFF_H - 0.1)))
 
     for hx, hy in M3_PILLARS:
         cutouts.append(Part.makeCylinder(1.7, TOP_PLATE_T + 5.0, FreeCAD.Vector(hx, hy, -4.0)))
@@ -204,10 +228,47 @@ def make_bottom_chassis() -> Part.Shape:
             cuts.append(Part.makeCylinder(1.7, 16.0, FreeCAD.Vector(sx - 8.0, by, -16.0), FreeCAD.Vector(1, 0, 0)))
 
     # Flush rear USB-C cutout aligned 1:1 with Pro Micro USB-C
+    # PCB top at Z = -42 + 3 + 6 + 1.6 = -31.4 mm; Pro Micro USB-C sits ~10mm above PCB -> Z = -31..-15 mm
     cuts.append(Part.makeBox(16.0, WALL_T + 4.0, 16.0,
-                             FreeCAD.Vector(USB_C_X - 8.0, CASE_D - WALL_T - 2.0, -21.0)))
+                             FreeCAD.Vector(USB_C_X - 8.0, CASE_D - WALL_T - 2.0, -31.0)))
 
     return tub.cut(cuts)
+
+def make_switch_carriers_plate() -> Part.Shape:
+    """
+    Generates all 8 rigid G82 Switch Backing Carrier Plates laid out cleanly on ONE 220x220mm print bed!
+    Each plate (2.5 mm thick) bolts onto the 5.2 mm bosses under the faceplate with M3x8mm screws,
+    capturing all 30 G82 12x12x5mm switches at the exact tactile height with 1.8x7.5mm pin slots
+    so switch leads + 1N4148 diodes solder cleanly on the rear!
+    """
+    laid_out = []
+    # Compact non-overlapping bed layout (all well within 200 x 170 mm!)
+    bed_origins = [
+        (  0.0,   0.0),  # pads_deckA  (88 x 42)
+        ( 94.0,   0.0),  # pads_deckB  (88 x 42)
+        (  0.0,  48.0),  # mixer_top   (50 x 62)
+        ( 56.0,  48.0),  # mixer_cue   (46 x 22)
+        (108.0,  48.0),  # loopsync_A  (22 x 42)
+        (136.0,  48.0),  # loopsync_B  (22 x 42)
+        ( 56.0,  76.0),  # transp_A    (50 x 21)
+        ( 56.0, 103.0),  # transp_B    (50 x 21)
+    ]
+    for idx, (cname, x0, y0, x1, y1, spts, sw_idxs) in enumerate(SWITCH_CARRIERS):
+        w, h = x1 - x0, y1 - y0
+        ox, oy = bed_origins[idx]
+        p = Part.makeBox(w, h, CARRIER_PLATE_T, FreeCAD.Vector(ox, oy, 0.0))
+        cuts = []
+        for bx, by in spts:
+            cuts.append(Part.makeCylinder(1.7, CARRIER_PLATE_T + 2.0, FreeCAD.Vector(ox + (bx - x0), oy + (by - y0), -1.0)))
+        for si in sw_idxs:
+            sx, sy = SW_CENTERS[si]
+            lx, ly = ox + (sx - x0), oy + (sy - y0)
+            # Shallow 0.6mm centering recess (12.4 x 12.4 mm) for G82 switch body + 2 pin-pass slots at +/-6.25mm!
+            cuts.append(Part.makeBox(12.4, 12.4, 0.7, FreeCAD.Vector(lx - 6.2, ly - 6.2, CARRIER_PLATE_T - 0.6)))
+            for dx in (-6.25, 6.25):
+                cuts.append(Part.makeBox(1.8, 7.6, CARRIER_PLATE_T + 2.0, FreeCAD.Vector(lx + dx - 0.9, ly - 3.8, -1.0)))
+        laid_out.append(p.cut(cuts))
+    return Part.makeCompound(laid_out)
 
 def make_jog_wheel() -> Part.Shape:
     base_disc = Part.makeCone(42.0, 41.0, 8.5, FreeCAD.Vector(0, 0, 0))
@@ -293,6 +354,9 @@ def main():
 
     coupon = make_tolerance_test_coupon()
     export_shape(coupon, "ddj_flx4_tolerance_test")
+
+    carriers = make_switch_carriers_plate()
+    export_shape(carriers, "ddj_flx4_switch_carriers")
 
     jog_a = jog.copy()
     jog_a.Placement.Base = FreeCAD.Vector(JOG_CENTERS[0][0], JOG_CENTERS[0][1], TOP_PLATE_T + 1.5)

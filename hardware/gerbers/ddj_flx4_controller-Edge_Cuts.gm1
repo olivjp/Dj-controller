@@ -1,11 +1,11 @@
 %TF.GenerationSoftware,KiCad,Pcbnew,9.0.6*%
-%TF.CreationDate,2026-11-21T21:35:36-03:00*%
+%TF.CreationDate,2026-11-21T21:59:19-03:00*%
 %TF.ProjectId,ddj_flx4_controller,64646a5f-666c-4783-945f-636f6e74726f,rev?*%
 %TF.SameCoordinates,Original*%
 %TF.FileFunction,Profile,NP*%
 %FSLAX46Y46*%
 G04 Gerber Fmt 4.6, Leading zero omitted, Abs format (unit mm)*
-G04 Created by KiCad (PCBNEW 9.0.6) date 2026-11-21 21:35:36*
+G04 Created by KiCad (PCBNEW 9.0.6) date 2026-11-21 21:59:19*
 %MOMM*%
 %LPD*%
 G01*
@@ -15,12 +15,12 @@ G04 APERTURE LIST*
 %TD*%
 G04 APERTURE END LIST*
 D10*
+X0Y-98000000D02*
+X0Y0D01*
+X98000000Y0D02*
+X98000000Y-98000000D01*
 X0Y0D02*
 X98000000Y0D01*
 X98000000Y-98000000D02*
 X0Y-98000000D01*
-X98000000Y0D02*
-X98000000Y-98000000D01*
-X0Y-98000000D02*
-X0Y0D01*
 M02*

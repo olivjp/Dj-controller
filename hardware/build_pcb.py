@@ -63,19 +63,20 @@ def parse_v2_netlist():
     for p, n in j2_nets.items():
         connect("J2", p, n)
 
-    # 2. Dual CD74HC4067 Breakout Sockets (J3/J4 = U1 Analog, J5/J6 = U2 Pads)
+    # 2. Dual CD74HC4067 Blue Breakout Sockets — Matched 1:1 to Physical Module Photo!
+    # Left 1x16 top->bottom: C15..C0 | Right 1x8 (aligned with C11..C4): SIG, S3, S2, S1, S0, EN(GND), VCC(+5V), GND
     add_comp("J3", "U1_CD74HC4067_CH_1x16", fp16)
     add_comp("J4", "U1_CD74HC4067_CTRL_1x8", fp8)
     for i in range(16):
-        connect("J3", str(i + 1), f"POT_CH{i}")
-    for p, n in [("1","GND"),("2","+5V"),("3","GND"),("4","MUX_S0"),("5","MUX_S1"),("6","MUX_S2"),("7","MUX_S3"),("8","MUX1_COM")]:
+        connect("J3", str(i + 1), f"POT_CH{15 - i}")
+    for p, n in [("1","MUX1_COM"),("2","MUX_S3"),("3","MUX_S2"),("4","MUX_S1"),("5","MUX_S0"),("6","GND"),("7","+5V"),("8","GND")]:
         connect("J4", p, n)
 
     add_comp("J5", "U2_CD74HC4067_CH_1x16", fp16)
     add_comp("J6", "U2_CD74HC4067_CTRL_1x8", fp8)
     for i in range(16):
-        connect("J5", str(i + 1), f"PAD_CH{i}")
-    for p, n in [("1","GND"),("2","+5V"),("3","GND"),("4","MUX_S0"),("5","MUX_S1"),("6","MUX_S2"),("7","MUX_S3"),("8","MUX2_COM")]:
+        connect("J5", str(i + 1), f"PAD_CH{15 - i}")
+    for p, n in [("1","MUX2_COM"),("2","MUX_S3"),("3","MUX_S2"),("4","MUX_S1"),("5","MUX_S0"),("6","GND"),("7","+5V"),("8","GND")]:
         connect("J6", p, n)
 
     # 3. Panel Harness Headers (J7..J14)
@@ -170,15 +171,17 @@ def get_v2_placements():
     pos["J6"] = (63.50, 41.91, 180.0) # U2 CTRL 1x8 (Y=41.91 down to 24.13)
     pos["J5"] = (78.74, 52.07, 180.0) # U2 CH 1x16 (Y=52.07 down to 13.97, exact 15.24mm spacing!)
 
-    # Left Edge Panel Headers (X=5.08, vertical)
-    pos["J7"] = (5.08, 13.97, 0.0)   # POTS_DECK_A (Y=13.97..31.75)
-    pos["J8"] = (5.08, 40.64, 0.0)   # POTS_DECK_B (Y=40.64..58.42)
-    pos["J9"] = (5.08, 67.31, 0.0)   # MIXER_FADERS (Y=67.31..80.01)
+    # Left Edge Panel Headers (X=5.08): J3 has C15 at top (13.97) down to C0 at bottom (52.07),
+    # so place J9 (CH10..12,15) at top, J8 (CH5..9,14) middle, J7 (CH0..4,13) bottom for zero bus crossings!
+    pos["J9"] = (5.08, 13.97, 0.0)   # MIXER_FADERS (Y=13.97..26.67)
+    pos["J8"] = (5.08, 34.29, 0.0)   # POTS_DECK_B  (Y=34.29..52.07)
+    pos["J7"] = (5.08, 59.69, 0.0)   # POTS_DECK_A  (Y=59.69..77.47)
 
-    # Right Edge Panel Headers (X=92.71, rot=180 aligned with J5, well clear of H2 at Y=5.08!)
-    pos["J10"] = (92.71, 62.23, 180.0) # PADS_DECK_A: Y=62.23..39.37
-    pos["J11"] = (92.71, 34.29, 180.0) # PADS_DECK_B: Y=34.29..11.43 (6.35mm clear of H2!)
-    pos["J14"] = (92.71, 76.20, 0.0)   # PWR_AUX (Y=76.20..83.82)
+    # Right Edge Panel Headers (X=92.71): J5 (rot=180) has PAD_CH0 at top (Y=13.97) down to PAD_CH15 at bottom (Y=52.07)!
+    # Place J10 (PAD_CH0..7) at top (rot=0) and J11 (PAD_CH8..15) below (rot=0) for 1:1 straight horizontal traces!
+    pos["J10"] = (92.71, 13.97, 0.0) # PADS_DECK_A: Y=13.97..36.83 (aligned 1:1 with J5!)
+    pos["J11"] = (92.71, 41.91, 0.0) # PADS_DECK_B: Y=41.91..64.77 (aligned 1:1 with J5!)
+    pos["J14"] = (92.71, 73.66, 0.0) # PWR_AUX      (Y=73.66..81.28)
 
     # Bottom Edge Panel Headers (Y=92.71, horizontal rot=90 -> pins run toward +X)
     pos["J12"] = (19.05, 92.71, 90.0) # MATRIX_4x4 (X=19.05..36.83)
@@ -246,11 +249,11 @@ def build_pcb():
 
     # 2. Clean Non-Overlapping Silkscreen Labels (away from pads & component outlines!)
     silk_texts = [
-        ("DDJ-FLX4 CORE v2.0", 49.0, 50.0, 1.1),
+        ("DDJ-FLX4 CORE v2.2", 49.0, 50.0, 1.1),
         ("USB-C", 49.0, 10.5, 1.0),
         ("PRO MICRO", 49.0, 18.0, 1.0),
-        ("U1 ANALOG", 26.67, 18.0, 1.0),
-        ("U2 PADS 180", 71.12, 18.0, 0.9),
+        ("U1 C15-TOP", 26.67, 18.0, 0.9),
+        ("U2 C0-TOP", 71.12, 18.0, 0.9),
         ("MATRIX", 28.0, 88.2, 0.9),
         ("EC11", 58.4, 88.2, 0.9),
     ]
@@ -557,11 +560,11 @@ def build_pcb():
     # Order: +5V, MUX_S*, ROW/COL, then POT_CH (inner channels first so nothing gets boxed in), then PAD_CH
     def net_sort_key(n):
         if n == "+5V": return (0, 0, n)
-        if n.startswith("MUX_S"): return (1, 0, n)
+        if n in ("MUX1_COM", "MUX1_ADC", "MUX2_COM") or n.startswith("MUX_S"): return (1, 0, n)
         if n.startswith("ROW") or n.startswith("COL"): return (2, 0, n)
         if n.startswith("POT_CH"):
             idx = int(n.replace("POT_CH", ""))
-            return (3, -idx, n)  # Route outer/longer POT_CH15..8 before POT_CH0..7!
+            return (3, idx, n)  # Route C0..C15 bottom-up matching J3 C15-top->C0-bottom layout!
         return (4, 0, n)
     non_gnd_nets.sort(key=net_sort_key)
 
@@ -609,14 +612,15 @@ def build_pcb():
         route_two_pads(get_pad(f"C{10 + ch}", "2"), get_pad(f"C{18 + ch}", "2"), "GND", gnd_ni, TRACK_W_SIG)
     for ch in range(7):
         route_two_pads(get_pad(f"C{18 + ch}", "2"), get_pad(f"C{19 + ch}", "2"), "GND", gnd_ni, TRACK_W_SIG)
-    route_two_pads(get_pad("C18", "2"), get_pad("J9", "6"), "GND", gnd_ni, TRACK_W_SIG)
+    route_two_pads(get_pad("C18", "2"), get_pad("J7", "8"), "GND", gnd_ni, TRACK_W_SIG)
     route_two_pads(get_pad("C25", "2"), get_pad("J14", "3"), "GND", gnd_ni, TRACK_W_SIG)
     gnd_backbone = [
-        ("H1", "1", "J7", "8"), ("J7", "8", "J8", "8"), ("J8", "8", "J9", "6"), ("J9", "6", "H3", "1"),
+        ("H1", "1", "J9", "6"), ("J9", "6", "J8", "8"), ("J8", "8", "J7", "8"), ("J7", "8", "H3", "1"),
         ("H1", "1", "J1", "3"), ("J1", "3", "J2", "2"), ("J2", "2", "H2", "1"),
-        ("H2", "1", "J11", "10"), ("J11", "9", "J10", "10"), ("J10", "9", "J14", "3"), ("J14", "4", "H4", "1"),
+        ("H2", "1", "J10", "9"), ("J10", "10", "J11", "9"), ("J11", "10", "J14", "3"), ("J14", "4", "H4", "1"),
         ("H3", "1", "J13", "3"), ("J13", "6", "H4", "1"),
-        ("J4", "1", "J1", "4"), ("J6", "1", "J2", "2"),
+        ("J4", "8", "J1", "4"), ("J6", "8", "J2", "2"),
+        ("C8", "2", "J4", "8"), ("C8", "2", "C3", "2"),
     ]
     for r1, p1, r2, p2 in gnd_backbone:
         route_two_pads(get_pad(r1, p1), get_pad(r2, p2), "GND", gnd_ni, TRACK_W_PWR)
